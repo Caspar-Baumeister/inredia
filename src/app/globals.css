@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f7f7f8;
+  --color-foreground: #101828;
+  --color-card: #ffffff;
+  --color-muted: #f1f2f4;
+  --color-muted-foreground: #6b7280;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-primary: #101828;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #ff6a3d;
+  --color-accent-soft: #fff1ec;
+  --color-brand: #3b5bdb;
+  --color-brand-soft: #eef2ff;
+  --color-success: #16a34a;
+  --color-success-soft: #ecfdf3;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --shadow-stack: 0 12px 40px rgba(16, 24, 40, 0.18);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-foreground);
+}
+body {
+  background: var(--color-background);
+  min-height: 100vh;
+}
+* {
+  border-color: var(--color-border);
+}
+
+/* Swipe card helpers */
+.card-shadow { box-shadow: var(--shadow-card); }
+.stack-shadow { box-shadow: var(--shadow-stack); }
+.no-select { user-select: none; -webkit-user-select: none; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 180ms ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #ececef 0px, #f6f6f8 200px, #ececef 400px);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
