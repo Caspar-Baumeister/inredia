@@ -2,13 +2,18 @@ import "server-only";
 import { after } from "next/server";
 import { getSupabaseAdmin } from "./supabase/admin";
 import { buildFurnishingPlan } from "./ai/plan";
-import { buildEditPrompt, buildGenerationPrompt, pickVariation } from "./ai/prompt";
+import { buildEditPrompt, buildGenerationPrompt, pickVariation, surfaceRules } from "./ai/prompt";
 import { aspectRatioFor, geminiImageProvider } from "./ai/image";
+import { verifyStructure } from "./ai/verify";
 import { downloadAsBase64, GENERATIONS, ORIGINALS, signedUrls, uploadBuffer } from "./storage";
 import type { FurnishingPlan, GenerationRow, PhotoRow, ProjectRow, RoomRow, StackCard } from "./types";
 
 export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
 export const DAILY_LIMIT = Number(process.env.DAILY_IMAGE_LIMIT || 60);
+// Every generated image is checked against the original by the vision model;
+// images that changed windows/doors/walls (or a kept floor) are regenerated.
+export const STRUCTURE_CHECK = process.env.STRUCTURE_CHECK !== "0";
+export const STRUCTURE_RETRIES = Number(process.env.STRUCTURE_RETRIES ?? 2);
 
 // ---------------------------------------------------------------------------
 // Plan
@@ -170,15 +175,19 @@ export async function runGeneration(generationId: string) {
     if (!p.plan) throw new Error("Project has no plan");
     const plan = p.plan as FurnishingPlan;
 
-    let prompt: string;
-    let base: { mimeType: string; data: string };
+    const detected = ph.detected ?? {};
+    const { keepFloor, keepWalls } = surfaceRules(p.preferences, detected);
+    const original = await downloadAsBase64(ORIGINALS, ph.storage_path);
+
+    let base = original;
     let refs: { mimeType: string; data: string }[] = [];
+    let buildPrompt: (retryFeedback?: string) => string;
 
     if (gen.kind === "edit" && gen.parent_generation_id) {
       const { data: parent } = await admin.from("generations").select("storage_path").eq("id", gen.parent_generation_id).single();
       if (!parent?.storage_path) throw new Error("Parent image missing");
       base = await downloadAsBase64(GENERATIONS, parent.storage_path as string);
-      prompt = buildEditPrompt(gen.edit_instruction ?? "", plan);
+      buildPrompt = (retryFeedback) => buildEditPrompt(gen.edit_instruction ?? "", plan, { prefs: p.preferences, detected, retryFeedback });
     } else {
       const roomPlan = plan.rooms.find((r) => r.room_id === ph.room_id) ?? plan.rooms[0];
       if (!roomPlan) throw new Error("No room plan");
@@ -189,28 +198,55 @@ export async function runGeneration(generationId: string) {
         .eq("active", true);
       const avoidRules = (rules ?? []).filter((r) => !r.photo_id || r.photo_id === gen.photo_id).map((r) => r.text as string);
       refs = await loadStyleRefs(gen.project_id, gen.photo_id);
-      base = await downloadAsBase64(ORIGINALS, ph.storage_path);
-      prompt = buildGenerationPrompt({
-        plan,
-        roomPlan,
-        prefs: p.preferences,
-        detected: ph.detected ?? {},
-        variation: gen.variation ?? {},
-        avoidRules,
-        hasStyleRefs: refs.length > 0,
-      });
+      buildPrompt = (retryFeedback) =>
+        buildGenerationPrompt({
+          plan,
+          roomPlan,
+          prefs: p.preferences,
+          detected,
+          variation: gen.variation ?? {},
+          avoidRules,
+          hasStyleRefs: refs.length > 0,
+          retryFeedback,
+        });
     }
 
-    const result = await geminiImageProvider.generate({
-      prompt,
-      base,
-      refs,
-      aspectRatio: aspectRatioFor(ph.width, ph.height),
-    });
+    // Generate → verify architecture → retry with the verifier's feedback.
+    const aspectRatio = aspectRatioFor(ph.width, ph.height);
+    let prompt = buildPrompt();
+    let result: Awaited<ReturnType<typeof geminiImageProvider.generate>> | null = null;
+    let lastProblems: string[] = [];
+    for (let attempt = 0; attempt <= STRUCTURE_RETRIES; attempt++) {
+      if (attempt > 0) prompt = buildPrompt(lastProblems.join("; "));
+      const candidate = await geminiImageProvider.generate({ prompt, base, refs, aspectRatio });
+      if (!STRUCTURE_CHECK) {
+        result = candidate;
+        break;
+      }
+      const verdict = await verifyStructure({
+        original,
+        generated: { mimeType: candidate.mimeType, data: candidate.data.toString("base64") },
+        detected,
+        keepFloor,
+        keepWalls,
+      }).catch((e) => {
+        console.error("verify failed, accepting image", e);
+        return { ok: true, problems: [], confidence: 0 };
+      });
+      if (verdict.ok) {
+        result = candidate;
+        break;
+      }
+      lastProblems = verdict.problems.length ? verdict.problems : ["architecture changed"];
+      console.warn(`structure check failed (attempt ${attempt + 1})`, gen.id, lastProblems);
+      await admin.from("generations").update({ error: `retry: ${lastProblems.join("; ").slice(0, 400)}` }).eq("id", gen.id);
+    }
+    if (!result) throw new Error(`Structure changed after ${STRUCTURE_RETRIES + 1} attempts: ${lastProblems.join("; ")}`);
+
     const ext = result.mimeType.includes("jpeg") ? "jpg" : result.mimeType.includes("webp") ? "webp" : "png";
     const path = `${p.user_id}/${p.id}/${gen.id}.${ext}`;
     await uploadBuffer(GENERATIONS, path, result.data, result.mimeType);
-    await admin.from("generations").update({ status: "ready", storage_path: path, prompt }).eq("id", gen.id);
+    await admin.from("generations").update({ status: "ready", storage_path: path, prompt, error: null }).eq("id", gen.id);
   } catch (e) {
     const msg = (e as Error).message?.slice(0, 500) ?? "unknown";
     console.error("generation failed", gen.id, msg);

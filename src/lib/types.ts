@@ -139,6 +139,7 @@ export type PhotoDetected = {
   floor_guess?: string;
   wall_guess?: string;
   light?: string;
+  architecture?: string; // inventory of windows/doors/etc. used for prompts + verification
   notes?: string;
 };
 

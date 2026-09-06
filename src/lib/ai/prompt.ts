@@ -46,7 +46,28 @@ export function pickVariation(index: number) {
 
 const QUALITY = `PHOTOGRAPHY: This must look like a real photograph taken by a professional interior photographer for a premium furniture catalogue or an architecture magazine. Natural daylight consistent with the window position in the original, soft shadows, realistic materials and reflections, correct scale of furniture relative to the room, straight verticals, 24-35mm full-frame look, subtle depth of field. No text, no watermark, no logos, no people, no pets, no floating or clipped objects, no distortion of walls, no cartoonish or CGI look, no oversaturation.`;
 
-const STRUCTURE_RULE = `RULE #1 — ABSOLUTE, OVERRIDES EVERYTHING ELSE: The architecture of the room is fixed. Keep EXACTLY the same walls, wall positions and angles, ceiling, floor plan, windows (same number, size, position and view outside), doors and door openings, radiators, pipes, sockets, built-in shelves and niches, and the same camera position, lens and perspective as in the original photo. NEVER add a window, door, wall, arch, column, beam, skylight, fireplace, staircase or any other structural element that is not in the original. NEVER remove or move one. NEVER change the room's size or proportions. If a furniture arrangement would require changing the architecture, change the furniture arrangement instead. The output must be the same room from the same viewpoint — only its surfaces, furniture and decor may differ.`;
+const STRUCTURE_RULE = `RULE #1 — ABSOLUTE, OVERRIDES EVERYTHING ELSE: This is an IN-PAINTING task, not a new picture. The architecture of the room is fixed. Keep EXACTLY the same walls, wall positions and angles, ceiling, floor plan, windows (same number, size, position, frame and view outside), doors and door openings (same number, position, open/closed state), radiators, pipes, sockets, built-in shelves and niches, and the same camera position, lens and perspective as in the original photo. NEVER add a window, door, wall, arch, column, beam, skylight, fireplace, staircase or any other structural element that is not in the original. NEVER remove, move, enlarge or shrink one. NEVER change the room's size or proportions. If a furniture arrangement would require changing the architecture, change the furniture arrangement instead. The output must be the same room from the same viewpoint — only the things listed below may differ.`;
+
+// What the classifier saw in the original — repeated back so the model has a
+// checklist rather than a vague instruction.
+function inventory(detected: PhotoDetected) {
+  const parts = [detected.architecture, detected.notes].filter(Boolean);
+  return parts.length ? `INVENTORY OF THE ORIGINAL (must all be present, unchanged, in the same place): ${parts.join(". ")}.` : "";
+}
+
+// Explicit surface instructions. When the user keeps the floor or walls we
+// describe the original so the model copies it instead of inventing a similar one.
+export function surfaceRules(prefs: Preferences, detected: PhotoDetected, roomPlan?: RoomPlan) {
+  const keepFloor = !prefs.floor || prefs.floor.mode === "keep";
+  const keepWalls = !prefs.walls || prefs.walls.mode === "keep";
+  const floor = keepFloor
+    ? `FLOOR — DO NOT CHANGE: keep the original floor exactly as photographed${detected.floor_guess ? ` (${detected.floor_guess})` : ""}: same material, same color and tone, same plank/tile width, same direction, same sheen, same wear and marks. Do not replace it with a similar-looking floor, do not lighten, darken or clean it. Rugs may lie on it; the visible floor must be identical to the input.`
+    : `FLOOR: ${roomPlan?.floor ?? "as described in the plan"}. Only the floor surface changes; its extent, perspective and the position of skirting boards stay identical.`;
+  const walls = keepWalls
+    ? `WALLS — DO NOT CHANGE: keep the original wall surfaces exactly as photographed${detected.wall_guess ? ` (${detected.wall_guess})` : ""}: same color, texture, trim and skirting. Only decor may be hung on them.`
+    : `WALLS: ${roomPlan?.walls ?? "as described in the plan"}. Only the paint/finish changes; every wall, corner, window and door stays where it is.`;
+  return { floor, walls, keepFloor, keepWalls };
+}
 
 export function buildGenerationPrompt(opts: {
   plan: FurnishingPlan;
@@ -56,10 +77,12 @@ export function buildGenerationPrompt(opts: {
   variation: Record<string, string>;
   avoidRules: string[];
   hasStyleRefs: boolean;
+  retryFeedback?: string; // problems the verifier found in a previous attempt
 }): string {
-  const { plan, roomPlan, prefs, detected, variation, avoidRules, hasStyleRefs } = opts;
+  const { plan, roomPlan, prefs, detected, variation, avoidRules, hasStyleRefs, retryFeedback } = opts;
   const sg = plan.style_guide;
   const furnish = prefs.furnish && roomPlan.items.length > 0;
+  const surfaces = surfaceRules(prefs, detected, roomPlan);
 
   const keep = detected.is_furnished
     ? "REMOVE all existing furniture and loose objects first, then furnish from scratch as described."
@@ -69,10 +92,14 @@ export function buildGenerationPrompt(opts: {
 
   return [
     STRUCTURE_RULE,
+    inventory(detected),
+    retryFeedback
+      ? `A PREVIOUS ATTEMPT WAS REJECTED because it changed the architecture: ${retryFeedback}. Do not repeat this. Copy the original's architecture and surfaces pixel-faithfully.`
+      : "",
     `TASK: Edit the attached photo of a ${roomPlan.label.toLowerCase()} into a finished, professionally styled interior. Output one photorealistic image with the same framing as the input.`,
     keep,
-    `WALLS: ${roomPlan.walls}`,
-    `FLOOR: ${roomPlan.floor}`,
+    surfaces.walls,
+    surfaces.floor,
     furnish
       ? `FURNITURE — use exactly these pieces and nothing else that is not implied by them (this list is fixed for budget reasons):\n${items}`
       : `FURNITURE: do not add furniture. Only the wall and floor changes.`,
@@ -87,18 +114,31 @@ export function buildGenerationPrompt(opts: {
       : "",
     (sg.avoid?.length || avoidRules.length) ? `AVOID: ${[...sg.avoid, ...avoidRules].join("; ")}.` : "",
     QUALITY,
-    `FINAL CHECK before output: same walls, same windows, same doors, same camera as the original. No added architecture.`,
+    `FINAL CHECK before output: same walls, same windows (count and position), same doors, ${surfaces.keepFloor ? "the identical original floor, " : ""}same camera as the original. No added or removed architecture.`,
   ]
     .filter(Boolean)
     .join("\n\n");
 }
 
-export function buildEditPrompt(instruction: string, plan: FurnishingPlan): string {
+export function buildEditPrompt(
+  instruction: string,
+  plan: FurnishingPlan,
+  opts?: { prefs?: Preferences; detected?: PhotoDetected; retryFeedback?: string },
+): string {
+  const surfaces = opts?.prefs ? surfaceRules(opts.prefs, opts.detected ?? {}) : null;
   return [
     STRUCTURE_RULE,
+    opts?.detected ? inventory(opts.detected) : "",
+    opts?.retryFeedback
+      ? `A PREVIOUS ATTEMPT WAS REJECTED because it changed the architecture: ${opts.retryFeedback}. Do not repeat this.`
+      : "",
     `TASK: Apply this change to the attached interior photo: "${instruction}".`,
     `Change only what the instruction asks for. Keep everything else — geometry, camera, furniture not mentioned, lighting — identical to the input.`,
+    surfaces?.keepFloor && !/floor/i.test(instruction) ? surfaces.floor : "",
+    surfaces?.keepWalls && !/wall|paint/i.test(instruction) ? surfaces.walls : "",
     `Stay within the home's style guide: ${plan.style_guide.summary}`,
     QUALITY,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }

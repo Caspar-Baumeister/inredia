@@ -11,9 +11,10 @@ export async function classifyPhoto(image: InlineImage): Promise<PhotoDetected> 
 - is_interior: boolean (true only if this is a photo of the inside of a room in a home or flat; false for outdoors, gardens, facades, people, documents, screenshots, etc.)
 - room_type: one of ${ROOM_TYPES.join(", ")} (your best guess for what this room is or would be used for)
 - is_furnished: boolean (true if there is substantial furniture, false if empty or only boxes/clutter)
-- floor_guess: short description of the current floor (e.g. "light laminate", "grey tiles", "old parquet")
+- floor_guess: precise description of the current floor: material, color/tone, plank or tile width, direction the planks run relative to the camera, sheen and wear (e.g. "narrow honey-colored pine floorboards running away from the camera, matte, visible knots")
 - wall_guess: short description of the walls (e.g. "white plaster", "beige with wallpaper")
 - light: short description of natural light and window position (e.g. "large window on the left, daylight")
+- architecture: a precise inventory of the fixed architecture as seen from this camera position, one short clause each, comma separated: every window (count, wall, size, frame color, what is outside), every door and door opening (count, wall, open/closed, color), radiators, ceiling type and height, visible wall corners, built-ins, sockets, skirting boards. Example: "1 double window on the back wall, white frames, trees outside; 1 white door on the right wall, closed; white radiator under the window; flat white ceiling; skirting boards white"
 - notes: one sentence about notable architecture (sloped ceiling, radiator, doors, built-ins) that must be preserved`,
     images: [image],
     temperature: 0.2,

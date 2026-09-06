@@ -10,7 +10,7 @@ Next.js (App Router) · Supabase (Auth, Postgres, Storage) · Gemini (text + ima
 1. Create a project at https://supabase.com → **Project Settings → API**: copy URL, anon key, service-role key.
 2. Run the schema: open **SQL Editor**, paste `supabase/migrations/0001_init.sql`, run. (Or `supabase link` + `supabase db push`.)
    This creates all tables, RLS policies, the `originals` / `generations` storage buckets and the daily-limit function.
-3. **Authentication → Providers**: enable **Email** (magic link works out of the box) and **Google** (paste your Google OAuth client id/secret; add `https://<ref>.supabase.co/auth/v1/callback` as redirect URI in Google Cloud).
+3. **Authentication → Providers**: enable **Email** (magic link works out of the box). For **Google**: Google Cloud → Auth Platform → create a Web OAuth client with redirect URI `https://<ref>.supabase.co/auth/v1/callback`, paste client id/secret into Supabase, then set `NEXT_PUBLIC_GOOGLE_AUTH=1`. For **Apple**: Apple Developer → Services ID + Sign in with Apple key, paste into Supabase, then set `NEXT_PUBLIC_APPLE_AUTH=1`. While the Google consent screen is in "testing" mode, add yourself under *Zielgruppe → Testnutzer*.
 4. **Authentication → URL Configuration**: Site URL `http://localhost:3000`, add `http://localhost:3000/api/auth/callback` and later `https://app.<domain>/api/auth/callback` to the redirect allow-list.
 
 ### Gemini
