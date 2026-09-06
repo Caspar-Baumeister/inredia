@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/app/Sidebar";
 import { ToastProvider } from "@/components/ui/toast";
+import { ProProvider } from "@/features/pro/ProWaitlist";
 import { FREE_PROJECT_LIMIT, getCurrentProject } from "@/lib/projects";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -16,10 +17,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
-      <div className="flex min-h-screen">
-        <Sidebar projects={list} currentId={project?.id ?? null} canCreate={list.length < FREE_PROJECT_LIMIT} />
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-      </div>
+      <ProProvider userEmail={user.email ?? ""}>
+        <div className="flex min-h-screen">
+          <Sidebar projects={list} currentId={project?.id ?? null} canCreate={list.length < FREE_PROJECT_LIMIT} />
+          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        </div>
+      </ProProvider>
     </ToastProvider>
   );
 }

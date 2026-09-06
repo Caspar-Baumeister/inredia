@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { logoutAction } from "@/app/auth/actions";
+import { SITE } from "@/lib/site";
+import { FeedbackCard } from "@/components/app/FeedbackCard";
 
 export default async function SettingsPage() {
   const sb = await createServerSupabase();
@@ -8,10 +10,9 @@ export default async function SettingsPage() {
     data: { user },
   } = await sb.auth.getUser();
   if (!user) redirect("/login");
-  const { data: profile } = await sb.from("profiles").select("daily_image_count, daily_count_reset_at").eq("id", user.id).maybeSingle();
-  const limit = Number(process.env.DAILY_IMAGE_LIMIT || 60);
-  const resetToday = profile?.daily_count_reset_at && new Date(profile.daily_count_reset_at as string) >= new Date(new Date().setHours(0, 0, 0, 0));
-  const used = resetToday ? (profile?.daily_image_count as number) : 0;
+  const { data: profile } = await sb.from("profiles").select("images_total").eq("id", user.id).maybeSingle();
+  const limit = SITE.freeImageLimit;
+  const used = Math.min(limit, Number(profile?.images_total ?? 0));
 
   return (
     <main className="flex-1 px-6 py-6">
@@ -25,14 +26,15 @@ export default async function SettingsPage() {
           </form>
         </section>
         <section className="rounded-xl border bg-card p-5 card-shadow">
-          <h2 className="text-sm font-semibold">Usage today</h2>
+          <h2 className="text-sm font-semibold">Free plan usage</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {used} of {limit} images generated. The counter resets at midnight.
+            {used} of {limit} images generated. The free plan includes {limit} images in total — Pro removes the limit.
           </p>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-foreground" style={{ width: `${Math.min(100, (used / limit) * 100)}%` }} />
           </div>
         </section>
+        <FeedbackCard />
       </div>
     </main>
   );

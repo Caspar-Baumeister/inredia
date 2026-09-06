@@ -99,11 +99,6 @@ export async function removeRuleAction(ruleId: string) {
   await sb.from("avoid_rules").update({ active: false }).eq("id", ruleId).eq("project_id", project.id);
 }
 
-export async function joinWaitlistAction() {
-  const { sb, user, project } = await ctx();
-  await sb.from("waitlist").insert({ user_id: user.id, email: user.email ?? "", reason: `daily limit · project ${project.id}` });
-}
-
 export async function switchPhotoPreloadAction(photoId: string) {
   // Warm the next photo's stack without blocking the UI.
   return getStackAction(photoId);

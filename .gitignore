@@ -13,3 +13,6 @@ next-env.d.ts
 .claude/
 .idea/
 .vscode/
+
+# landing source files (moved aside; originals are too big for the repo)
+public/landing/_to_delete/

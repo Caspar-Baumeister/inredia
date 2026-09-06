@@ -9,7 +9,8 @@ import { downloadAsBase64, GENERATIONS, ORIGINALS, signedUrls, uploadBuffer } fr
 import type { FurnishingPlan, GenerationRow, PhotoRow, ProjectRow, RoomRow, StackCard } from "./types";
 
 export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
-export const DAILY_LIMIT = Number(process.env.DAILY_IMAGE_LIMIT || 60);
+// Free plan: total image allowance per user (not per day).
+export const DAILY_LIMIT = Number(process.env.NEXT_PUBLIC_FREE_IMAGE_LIMIT || 50);
 // Every generated image is checked against the original by the vision model;
 // images that changed windows/doors/walls (or a kept floor) are regenerated.
 export const STRUCTURE_CHECK = process.env.STRUCTURE_CHECK !== "0";

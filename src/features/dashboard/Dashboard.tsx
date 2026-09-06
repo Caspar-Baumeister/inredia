@@ -1,17 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Info, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import type { FurnishingPlan, Preferences, StackCard } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
 import type { StackState } from "@/lib/pipeline";
 import { OriginalCard } from "./OriginalCard";
 import { SwipeStack } from "./SwipeStack";
 import { ChatBar, type ChatBarHandle } from "./ChatBar";
-import { editAction, getStackAction, joinWaitlistAction, swipeAction } from "./actions";
+import { editAction, getStackAction, swipeAction } from "./actions";
+import { usePro } from "@/features/pro/ProWaitlist";
 
 export type DashboardPhoto = {
   id: string;
@@ -37,11 +36,9 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
   const [stacks, setStacks] = useState<Record<string, StackState>>({});
   const [likeCard, setLikeCard] = useState<StackCard | null>(null);
   const [editCard, setEditCard] = useState<StackCard | null>(null);
-  const [showPlan, setShowPlan] = useState(false);
-  const [waitlisted, setWaitlisted] = useState(false);
-  const [plan, setPlan] = useState(project.plan);
   const chatRef = useRef<ChatBarHandle>(null);
   const toast = useToast();
+  const { openPro } = usePro();
   const [, start] = useTransition();
 
   const photo = photos[index];
@@ -126,7 +123,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
     setEditCard(null);
     start(async () => {
       const res = await editAction({ photoId: photo.id, generationId: card.id, instruction });
-      if (res.limitReached) toast.push({ title: "Daily limit reached", description: "Join the waitlist for full access.", tone: "danger" });
+      if (res.limitReached) openPro("image_limit");
       else toast.push({ title: "Editing…", description: "The edited version lands on top of the stack.", durationMs: 3000 });
       refresh(photo.id);
     });
@@ -135,7 +132,6 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
   function onChatApplied(regenerated: boolean) {
     if (regenerated) {
       setStacks({});
-      setPlan(null);
       toast.push({ title: "Preferences updated", description: "Rebuilding the plan and regenerating your rooms.", tone: "success" });
       refresh(photo.id);
     } else {
@@ -144,24 +140,8 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
   }
 
   function joinWaitlist() {
-    start(async () => {
-      await joinWaitlistAction();
-      setWaitlisted(true);
-      toast.push({ title: "You're on the list", tone: "success" });
-    });
+    openPro("image_limit");
   }
-
-  // Keep the plan in sync once it's rebuilt (for the "Why this look?" panel).
-  useEffect(() => {
-    if (!plan && stack?.planStatus === "ready") {
-      fetch("/api/plan")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => d?.plan && setPlan(d.plan))
-        .catch(() => {});
-    }
-  }, [plan, stack?.planStatus]);
-
-  const roomPlan = plan?.rooms.find((r) => r.room_id === photo.roomId);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -170,9 +150,6 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <p className="text-xs text-muted-foreground">Swipe right to keep, left to skip. Everything is generated from one plan, so all rooms match.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowPlan(true)}>
-          <Info size={14} /> Why this look?
-        </Button>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pb-10 md:flex-row md:items-start md:gap-14 md:pt-6">
@@ -191,7 +168,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
           onDislike={handleDislike}
           onEdit={setEditCard}
           onJoinWaitlist={joinWaitlist}
-          waitlisted={waitlisted}
+          waitlisted={false}
         />
       </main>
 
@@ -205,48 +182,6 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
         <EditForm onSubmit={submitEdit} />
       </Dialog>
 
-      <Dialog open={showPlan} onClose={() => setShowPlan(false)} title="Why this look?" className="max-w-lg">
-        {plan ? (
-          <div className="space-y-4 text-sm">
-            <p>{plan.style_guide.summary}</p>
-            <div className="flex flex-wrap gap-2">
-              {plan.style_guide.palette.map((p) => (
-                <span key={p.hex} className="flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs">
-                  <span className="h-3 w-3 rounded-full border" style={{ background: p.hex }} /> {p.name}
-                </span>
-              ))}
-            </div>
-            {roomPlan && (
-              <div>
-                <p className="font-medium">
-                  {roomPlan.label}
-                  {roomPlan.budget != null && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {formatCurrency(roomPlan.total)} of {formatCurrency(roomPlan.budget)}
-                    </span>
-                  )}
-                </p>
-                <p className="mt-1 text-muted-foreground">Floor: {roomPlan.floor}</p>
-                {roomPlan.items.length > 0 && (
-                  <ul className="mt-2 divide-y rounded-lg border">
-                    {roomPlan.items.map((it, i) => (
-                      <li key={i} className="flex justify-between gap-4 px-3 py-2">
-                        <span>{it.item}</span>
-                        <span className="shrink-0 text-muted-foreground">~{formatCurrency(it.est_price)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="mt-2 text-xs text-muted-foreground">Prices are estimates for the chosen shopping tier, not live offers.</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 size={14} className="animate-spin" /> The plan is being created…
-          </p>
-        )}
-      </Dialog>
     </div>
   );
 }

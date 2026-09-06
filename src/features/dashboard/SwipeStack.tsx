@@ -176,13 +176,13 @@ function Placeholder({
     return (
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl border bg-card p-8 text-center stack-shadow">
         <Sparkles className="mb-3 text-accent" />
-        <p className="font-semibold">You&apos;ve used today&apos;s images</p>
-        <p className="mt-1 text-sm text-muted-foreground">Full access with unlimited generations is coming. Get on the list and we&apos;ll let you in first.</p>
+        <p className="font-semibold">You&apos;ve used your free images</p>
+        <p className="mt-1 text-sm text-muted-foreground">Pro removes the limit. Get on the list and we&apos;ll let you in first.</p>
         {waitlisted ? (
           <p className="mt-4 rounded-full bg-success-soft px-4 py-2 text-sm text-success">You&apos;re on the list</p>
         ) : (
           <button onClick={onJoinWaitlist} className="mt-4 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent/90">
-            Join the waitlist for full access
+            Join the Pro waitlist
           </button>
         )}
       </div>

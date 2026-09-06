@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, ChevronsUpDown, Lock, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { selectProjectAction } from "@/features/projects/actions";
+import { usePro } from "@/features/pro/ProWaitlist";
+import { LogoMark } from "./Logo";
 
 export type SwitcherProject = { id: string; name: string; done: boolean };
 
@@ -12,6 +14,7 @@ export function ProjectSwitcher({ projects, currentId, canCreate }: { projects: 
   const [pending, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
   const current = projects.find((p) => p.id === currentId) ?? null;
+  const { openPro } = usePro();
 
   useEffect(() => {
     if (!open) return;
@@ -30,9 +33,7 @@ export function ProjectSwitcher({ projects, currentId, canCreate }: { projects: 
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-success/90 text-sm font-semibold text-white">
-          {(current?.name ?? "i").slice(0, 1).toUpperCase()}
-        </div>
+        <LogoMark size={32} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{current?.name ?? "inredia"}</p>
           <p className="text-[11px] text-muted-foreground">inredia</p>
@@ -66,10 +67,16 @@ export function ProjectSwitcher({ projects, currentId, canCreate }: { projects: 
                 <Plus size={14} /> New project
               </a>
             ) : (
-              <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground" title="The free plan includes one project.">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  openPro("new_project");
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+              >
                 <Lock size={14} /> New project
                 <span className="ml-auto rounded-full border border-accent/40 bg-accent-soft px-1.5 text-[10px] font-medium text-accent">Pro</span>
-              </div>
+              </button>
             )}
             {!canCreate && <p className="px-3 pb-2 text-[11px] text-muted-foreground">More projects come with the paid plan.</p>}
           </div>
