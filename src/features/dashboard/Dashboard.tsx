@@ -99,17 +99,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
   function handleDislike(card: StackCard) {
     removeCardLocally(photo.id, card.id);
     start(async () => {
-      const res = await swipeAction({ generationId: card.id, action: "dislike" });
-      if (res.learnedRule) {
-        const rule = res.learnedRule;
-        toast.push({
-          title: `Got it — next ones will avoid ${rule}.`,
-          description: "Tap adjust to change or remove this rule.",
-          actionLabel: "Adjust →",
-          onAction: () => chatRef.current?.prefill(`About the rule "avoid ${rule}": `),
-          durationMs: 8000,
-        });
-      }
+      await swipeAction({ generationId: card.id, action: "dislike" });
       refresh(photo.id);
     });
   }
@@ -236,7 +226,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
                     </span>
                   )}
                 </p>
-                <p className="mt-1 text-muted-foreground">Walls: {roomPlan.walls} · Floor: {roomPlan.floor}</p>
+                <p className="mt-1 text-muted-foreground">Floor: {roomPlan.floor}</p>
                 {roomPlan.items.length > 0 && (
                   <ul className="mt-2 divide-y rounded-lg border">
                     {roomPlan.items.map((it, i) => (

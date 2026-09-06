@@ -64,7 +64,7 @@ export default async function PreferencesPage() {
                       </p>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Walls: {r.walls} · Floor: {r.floor}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Floor: {r.floor}</p>
                   <ul className="mt-2 space-y-0.5 text-xs">
                     {r.items.map((it, i) => (
                       <li key={i} className="flex justify-between gap-2">

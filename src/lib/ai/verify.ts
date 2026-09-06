@@ -18,8 +18,9 @@ export async function verifyStructure(opts: {
   detected: PhotoDetected;
   keepFloor: boolean;
   keepWalls: boolean;
+  keepExistingFurniture?: boolean;
 }): Promise<StructureVerdict> {
-  const { original, generated, detected, keepFloor, keepWalls } = opts;
+  const { original, generated, detected, keepFloor, keepWalls, keepExistingFurniture } = opts;
   const checks = [
     "windows: same number, same wall, same position and size (a window may be partly hidden by furniture or curtains — that is fine)",
     "doors and door openings: same number, position and state",
@@ -31,10 +32,13 @@ export async function verifyStructure(opts: {
     keepWalls
       ? `walls: same color/finish as in the original (${detected.wall_guess ?? "see image 1"}); decor hung on them is fine`
       : "walls: color may differ (intended)",
+    ...(keepExistingFurniture && detected.is_furnished
+      ? ["existing furniture: every piece of furniture visible in image 1 must still be present in image 2 at the same position (new pieces and decor may be added)"]
+      : []),
   ];
   const out = await generateJson<StructureVerdict>({
     system:
-      "You are a meticulous QA inspector for an interior-visualisation product. Image 1 is the original photo of an empty room, image 2 is an AI-generated furnished version. Furniture, decor, textiles and lighting are allowed to differ. Your only job is to detect changes to the fixed architecture and to protected surfaces. Be strict about the checklist, but do not flag things that are merely hidden behind furniture. Answer strictly as JSON.",
+      "You are a meticulous QA inspector for an interior-visualisation product. Image 1 is the original photo of a room (empty or furnished), image 2 is an AI-generated furnished version. Unless the checklist says otherwise, furniture, decor, textiles and lighting are allowed to differ. Your only job is to detect changes to the fixed architecture and to protected surfaces. Be strict about the checklist, but do not flag things that are merely hidden behind furniture. Answer strictly as JSON.",
     user: `Original inventory (from image 1): ${detected.architecture ?? "n/a"}. ${detected.notes ?? ""}
 
 Checklist:

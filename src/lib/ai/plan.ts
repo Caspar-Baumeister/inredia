@@ -5,7 +5,6 @@ import {
   ROOM_LABELS,
   STYLES,
   SHOP_TIERS,
-  WALL_PALETTES,
   FLOOR_MATERIALS,
   type FurnishingPlan,
   type PhotoRow,
@@ -36,12 +35,12 @@ export function splitBudget(prefs: Preferences, rooms: RoomRow[]): Record<string
 export function describePreferences(prefs: Preferences): string {
   const style = STYLES.find((s) => s.id === prefs.style);
   const tier = SHOP_TIERS.find((s) => s.id === prefs.shop_tier);
-  const palette = WALL_PALETTES.find((p) => p.id === prefs.walls?.palette);
   const floor = FLOOR_MATERIALS.find((f) => f.id === prefs.floor?.material);
   const lines = [
-    `Walls: ${prefs.walls?.mode ?? "auto"}${palette ? ` — ${palette.label}` : ""}`,
+    `Walls: unchanged (walls are never repainted)`,
     `Floor: ${prefs.floor?.mode ?? "auto"}${floor ? ` — ${floor.label}${prefs.floor?.tone ? ` (${prefs.floor.tone})` : ""}` : ""}`,
     `Furnish: ${prefs.furnish ? "yes" : "no"}`,
+    `Existing furniture in the photos: ${prefs.existing_furniture === "keep" ? "keep it and add complementary pieces only" : "remove and replace"}`,
   ];
   if (prefs.furnish) {
     lines.push(`Style: ${style ? `${style.label} — ${style.blurb}` : "surprise me"}`);
@@ -96,7 +95,7 @@ Return JSON exactly in this shape:
       "room_type": "<type>",
       "label": "<label>",
       "budget": <number or null>,
-      "walls": "concrete description of wall treatment for this room (color name + hex if painted, or 'unchanged')",
+      "walls": "always exactly 'unchanged'",
       "floor": "concrete description of the floor (or 'unchanged')",
       "layout_notes": "where the main pieces go relative to windows/doors",
       "items": [{"item": "3-seat sofa, light grey woven fabric, slim oak legs", "style_note": "...", "est_price": 599}],
@@ -105,7 +104,8 @@ Return JSON exactly in this shape:
   ],
   "total_estimate": <sum of all room totals>
 }
-${prefs.furnish ? "" : "The user does NOT want furniture changes: keep items arrays empty and focus on walls/floor descriptions."}`,
+${prefs.furnish ? "" : "The user does NOT want furniture changes: keep items arrays empty and focus on the floor description."}
+${prefs.existing_furniture === "keep" ? "Rooms marked 'furnished' keep their existing furniture: list only ADDITIONAL pieces that complement what is there (no second sofa, no second bed), and count only those against the budget." : ""}`,
     temperature: 0.5,
   });
 
@@ -133,6 +133,7 @@ function enforceBudgets(plan: FurnishingPlan, budgets: Record<string, number | n
     }
     fixedRooms.push({
       ...room,
+      walls: "unchanged",
       room_type: r.type,
       label: room.label ?? r.label ?? ROOM_LABELS[r.type],
       budget: cap,

@@ -96,9 +96,12 @@ export const VIBES = [
 ] as const;
 
 export type Preferences = {
+  // Walls are never changed by inredia; kept as an optional field for old rows.
   walls?: { mode: "keep" | "refresh" | "change" | "auto"; palette?: WallPalette };
   floor?: { mode: "keep" | "change" | "auto"; material?: FloorMaterial; tone?: "light" | "medium" | "dark" };
   furnish?: boolean;
+  // What to do with furniture that is already in the photos.
+  existing_furniture?: "replace" | "keep";
   style?: StyleId;
   shop_tier?: ShopTier;
   budget?: { total: number | null; currency: string; split: "auto" | "manual"; per_room?: Record<string, number> };

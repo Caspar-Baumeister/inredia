@@ -3,8 +3,7 @@
 import { requireUser } from "@/lib/supabase/server";
 import { getCurrentProject } from "@/lib/projects";
 import { ensureStack, enqueueEdit, invalidatePlan, type StackState } from "@/lib/pipeline";
-import { learnFromDislikes, preferencesDiffFromChat } from "@/lib/ai/chat";
-import { downloadAsBase64, GENERATIONS } from "@/lib/storage";
+import { preferencesDiffFromChat } from "@/lib/ai/chat";
 import { ROOM_LABELS, type PreferencesDiff, type RoomRow } from "@/lib/types";
 
 async function ctx() {
@@ -21,7 +20,7 @@ export async function getStackAction(photoId: string): Promise<StackState> {
   return ensureStack(project.id, photoId);
 }
 
-export type SwipeResult = { learnedRule?: string | null; ruleId?: string | null };
+export type SwipeResult = Record<string, never>;
 
 export async function swipeAction(input: {
   generationId: string;
@@ -32,7 +31,7 @@ export async function swipeAction(input: {
   const { sb, user, project } = await ctx();
   const { data: gen } = await sb
     .from("generations")
-    .select("id, photo_id, plan_version")
+    .select("id")
     .eq("id", input.generationId)
     .eq("project_id", project.id)
     .single();
@@ -44,37 +43,6 @@ export async function swipeAction(input: {
     await sb.from("library_items").upsert({ project_id: project.id, generation_id: gen.id, note: input.note ?? null }, { onConflict: "generation_id" });
   }
 
-  if (input.action === "dislike") {
-    // Learn from the last rejected cards of this photo (current plan version only).
-    const { data: rejected } = await sb
-      .from("swipes")
-      .select("generations!inner(storage_path, photo_id, plan_version)")
-      .eq("user_id", user.id)
-      .eq("action", "dislike")
-      .eq("generations.photo_id", gen.photo_id)
-      .eq("generations.plan_version", gen.plan_version)
-      .order("created_at", { ascending: false })
-      .limit(3);
-    type Row = { generations: { storage_path: string | null } };
-    const paths = ((rejected ?? []) as unknown as Row[]).map((r) => r.generations?.storage_path).filter((p): p is string => Boolean(p));
-    if (paths.length >= 2) {
-      const { data: existing } = await sb.from("avoid_rules").select("text").eq("project_id", project.id).eq("active", true);
-      try {
-        const images = await Promise.all(paths.map((p) => downloadAsBase64(GENERATIONS, p)));
-        const rule = await learnFromDislikes({ rejected: images, existingRules: (existing ?? []).map((r) => r.text as string) });
-        if (rule) {
-          const { data: inserted } = await sb
-            .from("avoid_rules")
-            .insert({ project_id: project.id, photo_id: gen.photo_id, text: rule, source: "swipe" })
-            .select("id")
-            .single();
-          return { learnedRule: rule, ruleId: (inserted?.id as string) ?? null };
-        }
-      } catch (e) {
-        console.error("learnFromDislikes failed", e);
-      }
-    }
-  }
   return {};
 }
 

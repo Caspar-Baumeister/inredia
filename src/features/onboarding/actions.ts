@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { CURRENT_PROJECT_COOKIE } from "@/lib/projects";
+import { CURRENT_PROJECT_COOKIE, FREE_PROJECT_LIMIT } from "@/lib/projects";
 import { classifyPhoto } from "@/lib/ai/classify";
 import { downloadAsBase64, ORIGINALS, signedUrl } from "@/lib/storage";
 import { invalidatePlan } from "@/lib/pipeline";
@@ -12,6 +12,8 @@ import { ROOM_LABELS, type PhotoDetected, type Preferences, type RoomType } from
 
 export async function createProjectAction(name: string): Promise<{ projectId: string }> {
   const { sb, user } = await requireUser();
+  const { count } = await sb.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+  if ((count ?? 0) >= FREE_PROJECT_LIMIT) throw new Error("The free plan includes one project. More projects come with the paid plan.");
   const { data, error } = await sb
     .from("projects")
     .insert({ user_id: user.id, name: name.trim() || "My home" })
@@ -28,9 +30,11 @@ export type RegisteredPhoto = {
   roomId: string;
   url: string;
   detected: PhotoDetected;
+  roomType: RoomType;
+  roomLabel: string; // custom name when roomType is "other"
 };
 
-export type RegisterResult = { ok: true; photo: RegisteredPhoto } | { ok: false; reason: "furnished" | "not_a_room" | "error"; message: string };
+export type RegisterResult = { ok: true; photo: RegisteredPhoto } | { ok: false; reason: "not_a_room" | "error"; message: string };
 
 // Called after the browser uploaded the file to the `originals` bucket.
 export async function registerPhotoAction(input: {
@@ -54,23 +58,20 @@ export async function registerPhotoAction(input: {
 
   if (detected.is_interior === false) {
     await getSupabaseAdmin().storage.from(ORIGINALS).remove([input.storagePath]);
-    return { ok: false, reason: "not_a_room", message: "This doesn't look like a room. Please upload a photo taken inside an empty room." };
+    return { ok: false, reason: "not_a_room", message: "This doesn't look like a room. Please upload a photo taken inside a room." };
   }
 
-  // Furnished rooms are not supported yet (planned for premium): reject and clean up.
-  if (detected.is_furnished) {
-    await getSupabaseAdmin().storage.from(ORIGINALS).remove([input.storagePath]);
-    return {
-      ok: false,
-      reason: "furnished",
-      message: "This room already has furniture. Right now inredia works with empty rooms only — furnished rooms are coming with premium.",
-    };
-  }
-  const type = (detected.room_type ?? "other") as RoomType;
+  // One photo per room: if the detected type is already taken in this project,
+  // fall back to "other" and let the user name it.
+  const { data: existingRooms } = await sb.from("rooms").select("type").eq("project_id", input.projectId);
+  const taken = new Set((existingRooms ?? []).map((r) => r.type as RoomType));
+  let type = (detected.room_type ?? "other") as RoomType;
+  if (type !== "other" && taken.has(type)) type = "other";
+  const label = type === "other" ? "" : ROOM_LABELS[type];
 
   const { data: room, error: roomErr } = await sb
     .from("rooms")
-    .insert({ project_id: input.projectId, type, label: ROOM_LABELS[type], sort_order: input.sortOrder })
+    .insert({ project_id: input.projectId, type, label: label || null, sort_order: input.sortOrder })
     .select("id")
     .single();
   if (roomErr || !room) throw new Error(roomErr?.message ?? "Could not create room");
@@ -91,24 +92,23 @@ export async function registerPhotoAction(input: {
   if (photoErr || !photo) throw new Error(photoErr?.message ?? "Could not save photo");
 
   const url = (await signedUrl(ORIGINALS, input.storagePath)) ?? "";
-  return { ok: true, photo: { photoId: photo.id as string, roomId: room.id as string, url, detected } };
+  return { ok: true, photo: { photoId: photo.id as string, roomId: room.id as string, url, detected, roomType: type, roomLabel: label } };
 }
 
-export async function updateRoomAction(input: { roomId: string; type?: RoomType; label?: string; mergeIntoRoomId?: string | null; photoId?: string }) {
+// Sets the room type, or a custom name (type "other"). Enforces one room per
+// type / name within the project.
+export async function updateRoomAction(input: { roomId: string; type: RoomType; label?: string }): Promise<{ ok: boolean; message?: string }> {
   const { sb } = await requireUser();
-  if (input.mergeIntoRoomId && input.photoId) {
-    // "same room as": move the photo to the other room and delete the now-empty room
-    await sb.from("photos").update({ room_id: input.mergeIntoRoomId }).eq("id", input.photoId);
-    const { count } = await sb.from("photos").select("id", { count: "exact", head: true }).eq("room_id", input.roomId);
-    if (!count) await sb.from("rooms").delete().eq("id", input.roomId);
-    return;
-  }
-  const patch: Record<string, unknown> = {};
-  if (input.type) {
-    patch.type = input.type;
-    patch.label = input.label ?? ROOM_LABELS[input.type];
-  } else if (input.label) patch.label = input.label;
-  await sb.from("rooms").update(patch).eq("id", input.roomId);
+  const { data: room } = await sb.from("rooms").select("project_id").eq("id", input.roomId).single();
+  if (!room) return { ok: false, message: "Room not found" };
+  const { data: others } = await sb.from("rooms").select("id, type, label").eq("project_id", room.project_id as string).neq("id", input.roomId);
+  const label = input.type === "other" ? (input.label ?? "").trim().slice(0, 40) : ROOM_LABELS[input.type];
+  const clash = (others ?? []).some((o) =>
+    input.type === "other" ? label !== "" && ((o.label as string | null) ?? "").trim().toLowerCase() === label.toLowerCase() : o.type === input.type,
+  );
+  if (clash) return { ok: false, message: `You already have a ${label || input.type}. One photo per room, please.` };
+  await sb.from("rooms").update({ type: input.type, label: label || null }).eq("id", input.roomId);
+  return { ok: true };
 }
 
 export async function deletePhotoAction(photoId: string) {

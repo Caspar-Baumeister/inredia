@@ -229,6 +229,7 @@ export async function runGeneration(generationId: string) {
         detected,
         keepFloor,
         keepWalls,
+        keepExistingFurniture: p.preferences.existing_furniture === "keep",
       }).catch((e) => {
         console.error("verify failed, accepting image", e);
         return { ok: true, problems: [], confidence: 0 };

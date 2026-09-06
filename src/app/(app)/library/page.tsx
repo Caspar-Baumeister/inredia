@@ -4,7 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { getCurrentProject } from "@/lib/projects";
 import { GENERATIONS, signedUrls } from "@/lib/storage";
 import { formatCurrency } from "@/lib/utils";
-import { RemoveFromLibrary } from "@/features/library/RemoveFromLibrary";
+import { ROOM_LABELS, type RoomType } from "@/lib/types";
+import { LibraryGallery, type LibraryGroup } from "@/features/library/LibraryGallery";
 
 export default async function LibraryPage() {
   const sb = await createServerSupabase();
@@ -28,6 +29,20 @@ export default async function LibraryPage() {
   };
   const items = ((data ?? []) as unknown as Row[]).filter((r) => r.generations?.storage_path);
   const urls = await signedUrls(GENERATIONS, items.map((r) => r.generations!.storage_path!));
+
+  // One stack per room (newest first inside each stack).
+  const groupMap = new Map<string, LibraryGroup>();
+  for (const it of items) {
+    const g = it.generations!;
+    const roomId = g.photos?.room_id ?? `photo:${g.photo_id}`;
+    const room = g.photos?.rooms;
+    const label = room?.label ?? (room ? ROOM_LABELS[room.type as RoomType] : "Room");
+    if (!groupMap.has(roomId)) {
+      groupMap.set(roomId, { roomId, label, images: [], plan: project.plan?.rooms.find((r) => r.room_id === g.photos?.room_id) ?? null });
+    }
+    groupMap.get(roomId)!.images.push({ id: it.id, url: urls[g.storage_path!] ?? "", note: it.note, createdAt: it.created_at });
+  }
+  const groups = [...groupMap.values()].filter((g) => g.images.length > 0);
 
   return (
     <main className="flex-1 px-6 py-6">
@@ -53,44 +68,7 @@ export default async function LibraryPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map((it) => {
-            const g = it.generations!;
-            const room = g.photos?.rooms;
-            const roomPlan = project.plan?.rooms.find((r) => r.room_id === g.photos?.room_id);
-            return (
-              <div key={it.id} className="overflow-hidden rounded-xl border bg-card card-shadow">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={urls[g.storage_path!]} alt="" className="aspect-[3/4] w-full object-cover" />
-                <div className="p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">{room?.label ?? "Room"}</p>
-                    <RemoveFromLibrary id={it.id} />
-                  </div>
-                  {it.note && <p className="mt-0.5 text-xs text-muted-foreground">“{it.note}”</p>}
-                  {roomPlan && roomPlan.items.length > 0 && (
-                    <details className="mt-2 text-xs">
-                      <summary className="cursor-pointer text-muted-foreground">
-                        Shopping list · ~{formatCurrency(roomPlan.total)}
-                      </summary>
-                      <ul className="mt-1 space-y-0.5">
-                        {roomPlan.items.map((x, i) => (
-                          <li key={i} className="flex justify-between gap-2">
-                            <span>{x.item}</span>
-                            <span className="shrink-0 text-muted-foreground">~{formatCurrency(x.est_price)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                  <a href={urls[g.storage_path!]} download className="mt-2 inline-block text-xs text-brand hover:underline">
-                    Download
-                  </a>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <LibraryGallery groups={groups} />
       )}
     </main>
   );

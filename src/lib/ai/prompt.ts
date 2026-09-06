@@ -59,7 +59,7 @@ function inventory(detected: PhotoDetected) {
 // describe the original so the model copies it instead of inventing a similar one.
 export function surfaceRules(prefs: Preferences, detected: PhotoDetected, roomPlan?: RoomPlan) {
   const keepFloor = !prefs.floor || prefs.floor.mode === "keep";
-  const keepWalls = !prefs.walls || prefs.walls.mode === "keep";
+  const keepWalls = true; // walls are never repainted in inredia
   const floor = keepFloor
     ? `FLOOR — DO NOT CHANGE: keep the original floor exactly as photographed${detected.floor_guess ? ` (${detected.floor_guess})` : ""}: same material, same color and tone, same plank/tile width, same direction, same sheen, same wear and marks. Do not replace it with a similar-looking floor, do not lighten, darken or clean it. Rugs may lie on it; the visible floor must be identical to the input.`
     : `FLOOR: ${roomPlan?.floor ?? "as described in the plan"}. Only the floor surface changes; its extent, perspective and the position of skirting boards stay identical.`;
@@ -84,8 +84,11 @@ export function buildGenerationPrompt(opts: {
   const furnish = prefs.furnish && roomPlan.items.length > 0;
   const surfaces = surfaceRules(prefs, detected, roomPlan);
 
+  const keepExisting = prefs.existing_furniture === "keep";
   const keep = detected.is_furnished
-    ? "REMOVE all existing furniture and loose objects first, then furnish from scratch as described."
+    ? keepExisting
+      ? "EXISTING FURNITURE — KEEP: every piece of furniture already in the photo stays exactly where it is, unchanged in shape, color and position. Only ADD the pieces listed below (skip any that duplicate what is already there) plus decor and textiles, so the result looks like the same room, completed."
+      : "REMOVE all existing furniture and loose objects first (leave the architecture and surfaces untouched), then furnish from scratch as described."
     : "The room is empty (or nearly empty); remove any leftover boxes or clutter and furnish it as described.";
 
   const items = roomPlan.items.map((it) => `• ${it.item}${it.style_note ? ` (${it.style_note})` : ""}`).join("\n");

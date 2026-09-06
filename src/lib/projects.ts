@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProjectRow } from "./types";
 
 export const CURRENT_PROJECT_COOKIE = "inredia_project";
+// Free plan: one project per user. More come with the paid plan.
+export const FREE_PROJECT_LIMIT = Number(process.env.FREE_PROJECT_LIMIT || 1);
 
 // The "current" project is remembered in a cookie; falls back to the newest one.
 export async function getCurrentProject(sb: SupabaseClient, userId: string): Promise<ProjectRow | null> {

@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Wizard, type ExistingProject } from "@/features/onboarding/Wizard";
-import { getCurrentProject } from "@/lib/projects";
+import { FREE_PROJECT_LIMIT, getCurrentProject } from "@/lib/projects";
 import { ORIGINALS, signedUrls } from "@/lib/storage";
 import type { PhotoRow, RoomRow } from "@/lib/types";
 
@@ -13,10 +13,14 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   if (!user) redirect("/login");
   const params = await searchParams;
 
-  // Resume an unfinished project (unless ?new=1 explicitly starts another one).
+  // Resume an unfinished project (unless ?new=1 explicitly starts another one —
+  // which the free plan only allows while there is no project yet).
   let existing: ExistingProject | null = null;
-  if (!params.new) {
+  const { count } = await sb.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+  const wantsNew = Boolean(params.new) && (count ?? 0) < FREE_PROJECT_LIMIT;
+  if (!wantsNew) {
     const project = await getCurrentProject(sb, user.id);
+    if (project?.onboarding_done && params.new) redirect("/dashboard");
     if (project && !project.onboarding_done) {
       const [{ data: photos }, { data: rooms }] = await Promise.all([
         sb.from("photos").select("*").eq("project_id", project.id).order("sort_order"),
@@ -34,6 +38,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
           url: urls[p.storage_path] ?? "",
           detected: p.detected ?? {},
           roomType: rm.find((r) => r.id === p.room_id)?.type ?? "other",
+          roomLabel: rm.find((r) => r.id === p.room_id)?.label ?? "",
           localUrl: "",
         })),
       };

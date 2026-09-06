@@ -6,29 +6,25 @@ import { Button } from "@/components/ui/button";
 import {
   FLOOR_MATERIALS,
   LIFESTYLE,
-  ROOM_LABELS,
   SHOP_TIERS,
   STYLES,
   VIBES,
-  WALL_PALETTES,
   type FloorMaterial,
   type Preferences,
-  type WallPalette,
 } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
-import { UploadStep, type UploadedPhoto } from "./UploadStep";
+import { photosAreValid, roomName, UploadStep, type UploadedPhoto } from "./UploadStep";
 import { Chips, OptionCards, StepShell } from "./ui";
 import { createProjectAction, finishOnboardingAction } from "./actions";
 
 type StepId =
   | "name"
   | "upload"
-  | "walls"
-  | "walls_palette"
   | "floor"
   | "floor_material"
   | "floor_tone"
   | "furnish"
+  | "existing_furniture"
   | "style"
   | "shop_tier"
   | "budget"
@@ -46,9 +42,9 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
   const [name, setName] = useState(existing?.name ?? "");
   const [photos, setPhotos] = useState<UploadedPhoto[]>(existing?.photos ?? []);
   const [prefs, setPrefs] = useState<Preferences>({
-    walls: { mode: "auto" },
-    floor: { mode: "auto" },
+    floor: { mode: "keep" },
     furnish: true,
+    existing_furniture: "replace",
     budget: { total: 5000, currency: "EUR", split: "auto" },
     lifestyle: [],
   });
@@ -58,14 +54,13 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
 
   const rooms = useMemo(() => {
     const map = new Map<string, { id: string; label: string }>();
-    for (const p of photos) if (!map.has(p.roomId)) map.set(p.roomId, { id: p.roomId, label: ROOM_LABELS[p.roomType] });
+    for (const p of photos) if (!map.has(p.roomId)) map.set(p.roomId, { id: p.roomId, label: roomName(p) || "Room" });
     return [...map.values()];
   }, [photos]);
 
+  const anyFurnished = photos.some((p) => p.detected.is_furnished);
   const steps: StepId[] = useMemo(() => {
     const s: StepId[] = ["name", "upload"];
-    s.push("walls");
-    if (prefs.walls?.mode === "change") s.push("walls_palette");
     s.push("floor");
     if (prefs.floor?.mode === "change") {
       s.push("floor_material");
@@ -73,13 +68,14 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
     }
     s.push("furnish");
     if (prefs.furnish) {
+      if (anyFurnished) s.push("existing_furniture");
       s.push("style", "shop_tier", "budget");
       if (prefs.budget?.total != null && rooms.length > 1) s.push("budget_split");
       s.push("lifestyle", "vibe");
     }
     s.push("summary");
     return s;
-  }, [prefs, rooms.length]);
+  }, [prefs, rooms.length, anyFurnished]);
 
   const step = steps[Math.min(stepIndex, steps.length - 1)];
   const progress = Math.round(((stepIndex + 1) / steps.length) * 100);
@@ -89,11 +85,9 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
       case "name":
         return true;
       case "upload":
-        return photos.length > 0;
-      case "walls":
-        return Boolean(prefs.walls?.mode);
-      case "walls_palette":
-        return Boolean(prefs.walls?.palette);
+        return photosAreValid(photos);
+      case "existing_furniture":
+        return Boolean(prefs.existing_furniture);
       case "floor":
         return Boolean(prefs.floor?.mode);
       case "floor_material":
@@ -172,33 +166,8 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
       )}
 
       {step === "upload" && projectId && (
-        <StepShell title="Upload photos of your rooms" subtitle="We'll detect the room type — correct it if we got it wrong.">
+        <StepShell title="Upload one photo per room" subtitle="We'll detect the room type — correct it if we got it wrong. Each room needs its own name.">
           <UploadStep userId={userId} projectId={projectId} photos={photos} onChange={setPhotos} />
-        </StepShell>
-      )}
-
-      {step === "walls" && (
-        <StepShell title="Walls" subtitle="Paint, keep, or let us decide?">
-          <OptionCards
-            value={prefs.walls?.mode}
-            onChange={(id) => set({ walls: { ...prefs.walls, mode: id as "keep" | "refresh" | "change" | "auto" } })}
-            options={[
-              { id: "keep", label: "Keep as they are" },
-              { id: "refresh", label: "Fresh coat, same feel", blurb: "Clean, neutral, bright" },
-              { id: "change", label: "Change the color", blurb: "Pick a color world next" },
-              { id: "auto", label: "Not sure — suggest something" },
-            ]}
-          />
-        </StepShell>
-      )}
-
-      {step === "walls_palette" && (
-        <StepShell title="Which color world?" subtitle="Rough direction is enough — the plan picks the exact tones.">
-          <OptionCards
-            value={prefs.walls?.palette}
-            onChange={(id) => set({ walls: { mode: "change", palette: id as WallPalette } })}
-            options={WALL_PALETTES.map((p) => ({ id: p.id, label: p.label, swatches: [...p.swatches] }))}
-          />
         </StepShell>
       )}
 
@@ -254,7 +223,20 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
             onChange={(id) => set({ furnish: id === "yes" })}
             options={[
               { id: "yes", label: "Yes, furnish them", blurb: "Style, budget and a shopping list" },
-              { id: "no", label: "No, only walls and floor", blurb: "Keep the rooms empty" },
+              { id: "no", label: "No, only the floor", blurb: "Leave the furniture as it is" },
+            ]}
+          />
+        </StepShell>
+      )}
+
+      {step === "existing_furniture" && (
+        <StepShell title="Some rooms already have furniture" subtitle="What should happen with it?">
+          <OptionCards
+            value={prefs.existing_furniture}
+            onChange={(id) => set({ existing_furniture: id as "replace" | "keep" })}
+            options={[
+              { id: "replace", label: "Replace it", blurb: "Clear the room and furnish it from scratch" },
+              { id: "keep", label: "Keep it", blurb: "Leave what's there and add what's missing" },
             ]}
           />
         </StepShell>
@@ -428,12 +410,12 @@ function ManualSplit({
 function Summary({ prefs, rooms }: { prefs: Preferences; rooms: { id: string; label: string }[] }) {
   const rows: [string, string][] = [
     ["Rooms", rooms.map((r) => r.label).join(", ")],
-    ["Walls", `${prefs.walls?.mode ?? "auto"}${prefs.walls?.palette ? ` · ${WALL_PALETTES.find((p) => p.id === prefs.walls?.palette)?.label}` : ""}`],
     ["Floor", `${prefs.floor?.mode ?? "auto"}${prefs.floor?.material ? ` · ${FLOOR_MATERIALS.find((f) => f.id === prefs.floor?.material)?.label}` : ""}${prefs.floor?.tone ? ` (${prefs.floor.tone})` : ""}`],
   ];
   if (prefs.furnish) {
     rows.push(["Style", STYLES.find((s) => s.id === prefs.style)?.label ?? "—"]);
     rows.push(["Shopping", SHOP_TIERS.find((s) => s.id === prefs.shop_tier)?.label ?? "—"]);
+    if (prefs.existing_furniture) rows.push(["Existing furniture", prefs.existing_furniture === "keep" ? "Keep and complement" : "Replace"]);
     rows.push(["Budget", prefs.budget?.total == null ? "No fixed budget" : `${formatCurrency(prefs.budget.total)} · split ${prefs.budget.split}`]);
     if (prefs.lifestyle?.length) rows.push(["Lifestyle", prefs.lifestyle.join(", ")]);
     rows.push(["Feel", VIBES.find((v) => v.id === prefs.vibe)?.label ?? "—"]);
