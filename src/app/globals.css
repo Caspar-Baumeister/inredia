@@ -64,5 +64,6 @@ body {
 
 /* Landing page typography (fonts are loaded via next/font on the page) */
 .landing .font-display { font-family: var(--font-display), Georgia, "Times New Roman", serif; font-variation-settings: "opsz" 144, "SOFT" 30; }
+.landing .font-hand { font-family: var(--font-hand), "Segoe Print", "Bradley Hand", cursive; }
 .landing .font-mono { font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace; }
 .landing { background-image: radial-gradient(1200px 600px at 50% -10%, rgba(184, 103, 42, 0.08), transparent 60%); }

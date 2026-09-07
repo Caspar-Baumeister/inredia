@@ -182,15 +182,17 @@ export function ScrollStory({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: 
         {/* Hero copy on the bright room: ink on a soft paper veil */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] bg-gradient-to-b from-paper/95 via-paper/60 to-transparent" style={{ opacity: heroTextOpacity }} />
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center px-6 pt-28 text-center text-ink md:pt-32" style={{ opacity: heroTextOpacity, transform: `translateY(${-24 * (1 - heroTextOpacity)}px)` }}>
-          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-ink/55">AI interior staging</span>
-          <h1 className="font-display mt-5 max-w-4xl text-[2.75rem] leading-[0.98] tracking-tight md:text-[5.5rem]">
-            Your room,
+          <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-ink/55">For buy-to-let investors</span>
+          <h1 className="font-display mt-5 max-w-4xl text-[2.6rem] leading-[0.98] tracking-tight md:text-[5.25rem]">
+            See it furnished
             <br />
-            <em className="font-light italic text-honey">furnished.</em>
+            <em className="font-light italic text-honey">before you buy.</em>
           </h1>
-          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-ink/70 md:text-base">
-            One photo per room. Your taste, your budget. Every room in a single matching style — swipe until it feels like home.
-          </p>
+          <p className="mt-6 max-w-md text-[15px] leading-relaxed text-ink/70 md:text-base">Stage any listing with AI. Compare the furnished yield. Decide.</p>
+          <a href={ctaHref} className="pointer-events-auto mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-[15px] font-medium text-paper transition-transform hover:-translate-y-0.5">
+            {ctaLabel} <span aria-hidden>→</span>
+          </a>
+          <span className="font-mono mt-3 text-[11px] uppercase tracking-[0.22em] text-ink/50">Free · no card</span>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-8 flex flex-col items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink/50" style={{ opacity: heroTextOpacity }}>
           <span>Scroll</span>
@@ -203,7 +205,7 @@ export function ScrollStory({ ctaHref, ctaLabel }: { ctaHref: string; ctaLabel: 
           style={{ opacity: finalTextOpacity, pointerEvents: finalTextOpacity > 0.5 ? "auto" : "none", transform: `translateY(${16 * (1 - finalTextOpacity)}px)` }}
         >
           <h2 className="font-display text-3xl leading-tight md:text-5xl">
-            Every style. Same room. <em className="italic text-honey">Your call.</em>
+            Every look. Same flat. <em className="italic text-honey">Your numbers.</em>
           </h2>
           <a href={ctaHref} className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-[15px] font-medium text-paper transition-transform hover:-translate-y-0.5">
             {ctaLabel} <span aria-hidden>→</span>
