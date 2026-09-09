@@ -46,9 +46,9 @@ export function Sidebar({ projects, currentId, canCreate }: { projects: Switcher
         <FeedbackCard compact />
         <button onClick={() => openPro("upgrade")} className="block w-full rounded-xl border border-accent/30 bg-accent-soft px-3 py-3 text-left hover:bg-accent-soft/70">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <Sparkles size={16} className="text-accent" /> Upgrade to Pro
+            <Sparkles size={16} className="text-accent" /> Upgrade
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Unlimited images and more projects. Join the waitlist.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Daily images and more projects — from 12,42 € / month.</p>
         </button>
         <form action={logoutAction}>
           <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-muted">

@@ -75,10 +75,10 @@ export function ProjectSwitcher({ projects, currentId, canCreate }: { projects: 
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
               >
                 <Lock size={14} /> New project
-                <span className="ml-auto rounded-full border border-accent/40 bg-accent-soft px-1.5 text-[10px] font-medium text-accent">Pro</span>
+                <span className="ml-auto rounded-full border border-accent/40 bg-accent-soft px-1.5 text-[10px] font-medium text-accent">Upgrade</span>
               </button>
             )}
-            {!canCreate && <p className="px-3 pb-2 text-[11px] text-muted-foreground">More projects come with the paid plan.</p>}
+            {!canCreate && <p className="px-3 pb-2 text-[11px] text-muted-foreground">Your plan&apos;s project limit is reached.</p>}
           </div>
         </div>
       )}

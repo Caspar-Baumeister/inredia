@@ -6,11 +6,10 @@ import { buildEditPrompt, buildGenerationPrompt, pickVariation, surfaceRules } f
 import { aspectRatioFor, geminiImageProvider } from "./ai/image";
 import { verifyStructure } from "./ai/verify";
 import { downloadAsBase64, GENERATIONS, ORIGINALS, signedUrls, uploadBuffer } from "./storage";
+import { reserveImages } from "./billing";
 import type { FurnishingPlan, GenerationRow, PhotoRow, ProjectRow, RoomRow, StackCard } from "./types";
 
 export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
-// Free plan: total image allowance per user (not per day).
-export const DAILY_LIMIT = Number(process.env.NEXT_PUBLIC_FREE_IMAGE_LIMIT || 50);
 // Every generated image is checked against the original by the vision model;
 // images that changed windows/doors/walls (or a kept floor) are regenerated.
 export const STRUCTURE_CHECK = process.env.STRUCTURE_CHECK !== "0";
@@ -91,12 +90,8 @@ export async function ensureStack(projectId: string, photoId: string): Promise<S
   }
 
   if (missing > 0) {
-    const { data: remaining } = await admin.rpc("reserve_images", {
-      p_user: project.user_id,
-      p_count: missing,
-      p_limit: DAILY_LIMIT,
-    });
-    if ((remaining as number) < 0) {
+    const remaining = await reserveImages(project.user_id, missing);
+    if (remaining < 0) {
       limitReached = true;
     } else {
       const { count } = await admin
@@ -255,7 +250,7 @@ export async function runGeneration(generationId: string) {
     await admin.from("generations").update({ status: "failed", error: msg }).eq("id", gen.id);
     // refund the reserved image
     const { data: project } = await admin.from("projects").select("user_id").eq("id", gen.project_id).single();
-    if (project) await admin.rpc("reserve_images", { p_user: project.user_id, p_count: -1, p_limit: DAILY_LIMIT });
+    if (project) await reserveImages(project.user_id as string, -1);
   }
 }
 
@@ -284,8 +279,8 @@ export async function enqueueEdit(projectId: string, photoId: string, parentId: 
   const admin = getSupabaseAdmin();
   const { data: project } = await admin.from("projects").select("user_id, plan_version").eq("id", projectId).single();
   if (!project) throw new Error("Project not found");
-  const { data: remaining } = await admin.rpc("reserve_images", { p_user: project.user_id, p_count: 1, p_limit: DAILY_LIMIT });
-  if ((remaining as number) < 0) return { limitReached: true as const };
+  const remaining = await reserveImages(project.user_id as string, 1);
+  if (remaining < 0) return { limitReached: true as const };
   const { data: inserted } = await admin
     .from("generations")
     .insert({

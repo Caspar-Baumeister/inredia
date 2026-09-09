@@ -1,7 +1,8 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Wizard, type ExistingProject } from "@/features/onboarding/Wizard";
-import { FREE_PROJECT_LIMIT, getCurrentProject } from "@/lib/projects";
+import { getCurrentProject } from "@/lib/projects";
+import { canCreateProject } from "@/lib/billing";
 import { ORIGINALS, signedUrls } from "@/lib/storage";
 import type { PhotoRow, RoomRow } from "@/lib/types";
 
@@ -17,7 +18,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   // which the free plan only allows while there is no project yet).
   let existing: ExistingProject | null = null;
   const { count } = await sb.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user.id);
-  const wantsNew = Boolean(params.new) && (count ?? 0) < FREE_PROJECT_LIMIT;
+  const wantsNew = Boolean(params.new) && (await canCreateProject(user.id, count ?? 0));
   if (!wantsNew) {
     const project = await getCurrentProject(sb, user.id);
     if (project?.onboarding_done && params.new) redirect("/dashboard");

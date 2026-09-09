@@ -47,7 +47,10 @@ export default async function Home() {
 
         <div className="mt-20 flex flex-col items-start gap-4 border-t border-ink/15 pt-8 md:flex-row md:items-center md:justify-between">
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-ink/50">
-            Free from the first listing · {SITE.freeImageLimit} images included · no card
+            Free from the first listing · {SITE.freeImageLimit} images included · no card ·{" "}
+            <Link href="/pricing" className="underline decoration-honey underline-offset-4">
+              plans from 12,42 €
+            </Link>
           </p>
           <Link href={ctaHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-[15px] font-medium text-paper transition-transform hover:-translate-y-0.5">
             {ctaLabel} <span aria-hidden>→</span>
@@ -57,7 +60,12 @@ export default async function Home() {
 
       <footer className="border-t border-ink/15">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-6 py-8 text-sm text-ink/60 md:flex-row md:items-center md:justify-between">
-          <span className="font-display text-lg text-ink">inredia</span>
+          <span className="flex items-center gap-4">
+            <span className="font-display text-lg text-ink">inredia</span>
+            <Link href="/pricing" className="text-ink/70 underline decoration-ink/20 underline-offset-4 hover:text-ink">
+              Pricing
+            </Link>
+          </span>
           <p>
             Made by {SITE.founder}, one person. Bugs, wishes, hellos →{" "}
             <a href={SITE.xUrl} target="_blank" rel="noreferrer" className="text-ink underline decoration-honey decoration-2 underline-offset-4">

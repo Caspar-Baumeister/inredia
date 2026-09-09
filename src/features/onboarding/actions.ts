@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { CURRENT_PROJECT_COOKIE, FREE_PROJECT_LIMIT } from "@/lib/projects";
+import { CURRENT_PROJECT_COOKIE } from "@/lib/projects";
+import { canCreateProject } from "@/lib/billing";
 import { classifyPhoto } from "@/lib/ai/classify";
 import { downloadAsBase64, ORIGINALS, signedUrl } from "@/lib/storage";
 import { invalidatePlan } from "@/lib/pipeline";
@@ -13,7 +14,7 @@ import { ROOM_LABELS, type PhotoDetected, type Preferences, type RoomType } from
 export async function createProjectAction(name: string): Promise<{ projectId: string }> {
   const { sb, user } = await requireUser();
   const { count } = await sb.from("projects").select("id", { count: "exact", head: true }).eq("user_id", user.id);
-  if ((count ?? 0) >= FREE_PROJECT_LIMIT) throw new Error("The free plan includes one project. More projects come with the paid plan.");
+  if (!(await canCreateProject(user.id, count ?? 0))) throw new Error("Your plan's project limit is reached. Upgrade to add more projects.");
   const { data, error } = await sb
     .from("projects")
     .insert({ user_id: user.id, name: name.trim() || "My home" })
