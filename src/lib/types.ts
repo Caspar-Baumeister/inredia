@@ -101,7 +101,10 @@ export type Preferences = {
   floor?: { mode: "keep" | "change" | "auto"; material?: FloorMaterial; tone?: "light" | "medium" | "dark" };
   furnish?: boolean;
   // What to do with furniture that is already in the photos.
-  existing_furniture?: "replace" | "keep";
+  //   replace = clear the room and furnish from scratch
+  //   curate  = keep the pieces that fit the style, replace the rest
+  //   keep    = keep everything, only add what is missing
+  existing_furniture?: "replace" | "curate" | "keep";
   style?: StyleId;
   shop_tier?: ShopTier;
   budget?: { total: number | null; currency: string; split: "auto" | "manual"; per_room?: Record<string, number> };

@@ -40,7 +40,13 @@ export function describePreferences(prefs: Preferences): string {
     `Walls: unchanged (walls are never repainted)`,
     `Floor: ${prefs.floor?.mode ?? "auto"}${floor ? ` — ${floor.label}${prefs.floor?.tone ? ` (${prefs.floor.tone})` : ""}` : ""}`,
     `Furnish: ${prefs.furnish ? "yes" : "no"}`,
-    `Existing furniture in the photos: ${prefs.existing_furniture === "keep" ? "keep it and add complementary pieces only" : "remove and replace"}`,
+    `Existing furniture in the photos: ${
+      prefs.existing_furniture === "keep"
+        ? "keep all of it and add complementary pieces only"
+        : prefs.existing_furniture === "curate"
+          ? "keep the pieces that fit the style, replace the ones that clash"
+          : "remove and replace everything"
+    }`,
   ];
   if (prefs.furnish) {
     lines.push(`Style: ${style ? `${style.label} — ${style.blurb}` : "surprise me"}`);
@@ -105,7 +111,8 @@ Return JSON exactly in this shape:
   "total_estimate": <sum of all room totals>
 }
 ${prefs.furnish ? "" : "The user does NOT want furniture changes: keep items arrays empty and focus on the floor description."}
-${prefs.existing_furniture === "keep" ? "Rooms marked 'furnished' keep their existing furniture: list only ADDITIONAL pieces that complement what is there (no second sofa, no second bed), and count only those against the budget." : ""}`,
+${prefs.existing_furniture === "keep" ? "Rooms marked 'furnished' keep their existing furniture: list only ADDITIONAL pieces that complement what is there (no second sofa, no second bed), and count only those against the budget." : ""}
+${prefs.existing_furniture === "curate" ? "Rooms marked 'furnished' keep the pieces that already fit the style. List the pieces that would REPLACE the clashing ones plus what is missing; assume roughly half of the existing furniture can stay, so keep the lists lean and count only the new pieces against the budget." : ""}`,
     temperature: 0.5,
   });
 

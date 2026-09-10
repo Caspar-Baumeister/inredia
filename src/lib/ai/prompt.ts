@@ -84,11 +84,13 @@ export function buildGenerationPrompt(opts: {
   const furnish = prefs.furnish && roomPlan.items.length > 0;
   const surfaces = surfaceRules(prefs, detected, roomPlan);
 
-  const keepExisting = prefs.existing_furniture === "keep";
+  const mode = prefs.existing_furniture ?? "replace";
   const keep = detected.is_furnished
-    ? keepExisting
-      ? "EXISTING FURNITURE — KEEP: every piece of furniture already in the photo stays exactly where it is, unchanged in shape, color and position. Only ADD the pieces listed below (skip any that duplicate what is already there) plus decor and textiles, so the result looks like the same room, completed."
-      : "REMOVE all existing furniture and loose objects first (leave the architecture and surfaces untouched), then furnish from scratch as described."
+    ? mode === "keep"
+      ? "EXISTING FURNITURE — KEEP ALL: every piece of furniture already in the photo stays exactly where it is, unchanged in shape, color and position. Only ADD the pieces listed below (skip any that duplicate what is already there) plus decor and textiles, so the result looks like the same room, completed."
+      : mode === "curate"
+        ? "EXISTING FURNITURE — KEEP WHAT FITS: judge every piece already in the photo against the style guide below. Pieces that match it in material, colour and form STAY exactly where they are, unchanged. Pieces that clash with it (wrong style, worn, mismatched colour) are REMOVED and replaced by the pieces from the list. Prefer keeping large, neutral, solid-wood or otherwise timeless pieces; remove tired, brightly clashing or broken ones. The result must look like the same room, tidied and completed — not like a different flat."
+        : "REMOVE all existing furniture and loose objects first (leave the architecture and surfaces untouched), then furnish from scratch as described."
     : "The room is empty (or nearly empty); remove any leftover boxes or clutter and furnish it as described.";
 
   const items = roomPlan.items.map((it) => `• ${it.item}${it.style_note ? ` (${it.style_note})` : ""}`).join("\n");

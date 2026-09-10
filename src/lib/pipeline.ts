@@ -6,7 +6,8 @@ import { buildEditPrompt, buildGenerationPrompt, pickVariation, surfaceRules } f
 import { aspectRatioFor, geminiImageProvider } from "./ai/image";
 import { verifyStructure } from "./ai/verify";
 import { downloadAsBase64, GENERATIONS, ORIGINALS, signedUrls, uploadBuffer } from "./storage";
-import { reserveImages } from "./billing";
+import { planForUser, reserveImages } from "./billing";
+import { imageModelForPlan } from "./ai/gemini";
 import type { FurnishingPlan, GenerationRow, PhotoRow, ProjectRow, RoomRow, StackCard } from "./types";
 
 export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
@@ -14,6 +15,9 @@ export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
 // images that changed windows/doors/walls (or a kept floor) are regenerated.
 export const STRUCTURE_CHECK = process.env.STRUCTURE_CHECK !== "0";
 export const STRUCTURE_RETRIES = Number(process.env.STRUCTURE_RETRIES ?? 2);
+// How many OTHER rooms get one image pre-generated while the user looks at the
+// current one. Keeps switching rooms instant without burning the whole quota.
+export const WARM_PHOTOS = Number(process.env.WARM_PHOTOS ?? 2);
 
 // ---------------------------------------------------------------------------
 // Plan
@@ -209,12 +213,13 @@ export async function runGeneration(generationId: string) {
 
     // Generate → verify architecture → retry with the verifier's feedback.
     const aspectRatio = aspectRatioFor(ph.width, ph.height);
+    const model = imageModelForPlan(await planForUser(p.user_id));
     let prompt = buildPrompt();
     let result: Awaited<ReturnType<typeof geminiImageProvider.generate>> | null = null;
     let lastProblems: string[] = [];
     for (let attempt = 0; attempt <= STRUCTURE_RETRIES; attempt++) {
       if (attempt > 0) prompt = buildPrompt(lastProblems.join("; "));
-      const candidate = await geminiImageProvider.generate({ prompt, base, refs, aspectRatio });
+      const candidate = await geminiImageProvider.generate({ prompt, base, refs, aspectRatio, model });
       if (!STRUCTURE_CHECK) {
         result = candidate;
         break;
@@ -226,6 +231,7 @@ export async function runGeneration(generationId: string) {
         keepFloor,
         keepWalls,
         keepExistingFurniture: p.preferences.existing_furniture === "keep",
+        // "curate" swaps some pieces on purpose, so furniture is not verified there.
       }).catch((e) => {
         console.error("verify failed, accepting image", e);
         return { ok: true, problems: [], confidence: 0 };
@@ -297,4 +303,35 @@ export async function enqueueEdit(projectId: string, photoId: string, parentId: 
   const id = inserted?.id as string;
   after(() => runGeneration(id));
   return { limitReached: false as const, id };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-warming: while the user swipes through one room, quietly generate ONE
+// image for the next rooms, so switching feels instant. Deliberately not a full
+// stack — that would multiply cost and slow the room the user is actually
+// looking at. Only runs once the current room already has something to show.
+// ---------------------------------------------------------------------------
+export async function warmOtherPhotos(projectId: string, currentPhotoId: string): Promise<void> {
+  if (WARM_PHOTOS <= 0) return;
+  const admin = getSupabaseAdmin();
+  const { data: project } = await admin.from("projects").select("id, user_id, plan_version, plan_status").eq("id", projectId).single();
+  const p = project as { user_id: string; plan_version: number; plan_status: string } | null;
+  if (!p || p.plan_status !== "ready") return;
+
+  const [{ data: photos }, { data: gens }] = await Promise.all([
+    admin.from("photos").select("id").eq("project_id", projectId).order("sort_order"),
+    admin.from("generations").select("photo_id").eq("project_id", projectId).eq("plan_version", p.plan_version),
+  ]);
+  const touched = new Set((gens ?? []).map((g) => g.photo_id as string));
+  const cold = (photos ?? []).map((x) => x.id as string).filter((id) => id !== currentPhotoId && !touched.has(id)).slice(0, WARM_PHOTOS);
+  if (!cold.length) return;
+
+  const remaining = await reserveImages(p.user_id, cold.length);
+  if (remaining < 0) return; // out of quota — the current room keeps priority
+
+  const { data: inserted } = await admin
+    .from("generations")
+    .insert(cold.map((photoId) => ({ project_id: projectId, photo_id: photoId, plan_version: p.plan_version, kind: "variant", variation: pickVariation(0), status: "queued" })))
+    .select("id");
+  await Promise.allSettled((inserted ?? []).map((r) => runGeneration(r.id as string)));
 }

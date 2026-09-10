@@ -1,5 +1,5 @@
 import "server-only";
-import { generateJson, type InlineImage } from "./gemini";
+import { generateJson, VERIFY_MODEL, type InlineImage } from "./gemini";
 import type { PhotoDetected } from "@/lib/types";
 
 export type StructureVerdict = {
@@ -35,6 +35,7 @@ export async function verifyStructure(opts: {
     ...(keepExistingFurniture && detected.is_furnished
       ? ["existing furniture: every piece of furniture visible in image 1 must still be present in image 2 at the same position (new pieces and decor may be added)"]
       : []),
+    // "curate" deliberately swaps some pieces, so furniture is not checked at all there.
   ];
   const out = await generateJson<StructureVerdict>({
     system:
@@ -47,6 +48,7 @@ ${checks.map((c) => `- ${c}`).join("\n")}
 Return JSON: { "ok": boolean, "problems": string[] (each a short concrete sentence; empty if ok), "confidence": number 0..1 }. Set ok=false only for a real violation of the checklist.`,
     images: [original, generated],
     temperature: 0.1,
+    model: VERIFY_MODEL,
   });
   return {
     ok: Boolean(out.ok),

@@ -13,7 +13,16 @@ export function gemini() {
 }
 
 export const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
+// Image model per plan: paid Pro users get the stronger (slower, pricier) model,
+// everyone else the fast one. Set GEMINI_IMAGE_MODEL_PRO to enable the upgrade.
 export const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+export const IMAGE_MODEL_PRO = process.env.GEMINI_IMAGE_MODEL_PRO || IMAGE_MODEL;
+// The structure check only answers yes/no — a cheaper/faster model is fine here.
+export const VERIFY_MODEL = process.env.GEMINI_VERIFY_MODEL || TEXT_MODEL;
+
+export function imageModelForPlan(plan: string): string {
+  return plan === "pro" ? IMAGE_MODEL_PRO : IMAGE_MODEL;
+}
 
 export type InlineImage = { mimeType: string; data: string }; // base64
 
@@ -23,6 +32,7 @@ export async function generateJson<T>(opts: {
   user: string;
   images?: InlineImage[];
   temperature?: number;
+  model?: string;
 }): Promise<T> {
   const parts: Array<{ text: string } | { inlineData: InlineImage }> = [];
   for (const img of opts.images ?? []) parts.push({ inlineData: img });
@@ -30,7 +40,7 @@ export async function generateJson<T>(opts: {
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await gemini().models.generateContent({
-      model: TEXT_MODEL,
+      model: opts.model ?? TEXT_MODEL,
       contents: [{ role: "user", parts }],
       config: {
         systemInstruction: opts.system,

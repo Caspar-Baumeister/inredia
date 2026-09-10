@@ -29,7 +29,7 @@ type Project = {
   preferences: Preferences;
 };
 
-const POLL_MS = 2500;
+const POLL_MS = 1500;
 
 export function Dashboard({ project, photos }: { project: Project; photos: DashboardPhoto[] }) {
   const [index, setIndex] = useState(0);

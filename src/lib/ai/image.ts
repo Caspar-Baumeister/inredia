@@ -6,6 +6,7 @@ export type ImageRequest = {
   base: InlineImage; // the original photo (or the card being edited)
   refs?: InlineImage[]; // liked images used as style references
   aspectRatio?: string;
+  model?: string; // defaults to GEMINI_IMAGE_MODEL
 };
 
 export type ImageResult = { mimeType: string; data: Buffer };
@@ -28,7 +29,7 @@ export const geminiImageProvider: ImageProvider = {
     parts.push({ text: req.prompt });
 
     const res = await gemini().models.generateContent({
-      model: IMAGE_MODEL,
+      model: req.model ?? IMAGE_MODEL,
       contents: [{ role: "user", parts }],
       config: {
         responseModalities: ["IMAGE"],

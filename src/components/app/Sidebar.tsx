@@ -2,19 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Images, SlidersHorizontal, Settings, Sparkles, LogOut } from "lucide-react";
+import { Sparkles, LogOut } from "lucide-react";
+import { NAV } from "./nav";
 import { ProjectSwitcher, type SwitcherProject } from "./ProjectSwitcher";
 import { FeedbackCard } from "./FeedbackCard";
 import { usePro } from "@/features/pro/ProWaitlist";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/app/auth/actions";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/library", label: "Library", icon: Images },
-  { href: "/preferences", label: "Preferences", icon: SlidersHorizontal },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 
 export function Sidebar({ projects, currentId, canCreate }: { projects: SwitcherProject[]; currentId: string | null; canCreate: boolean }) {
   const path = usePathname();

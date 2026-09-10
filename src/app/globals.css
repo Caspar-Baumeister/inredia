@@ -29,6 +29,10 @@
 }
 
 html {
+  /* A swipe card flung off-screen must never widen the viewport (mobile zoom-out).
+     `clip` does this without turning the root into a scroll container, so
+     position: sticky on the landing page keeps working. */
+  overflow-x: clip;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   color: var(--color-foreground);

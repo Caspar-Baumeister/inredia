@@ -233,10 +233,11 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
         <StepShell title="Some rooms already have furniture" subtitle="What should happen with it?">
           <OptionCards
             value={prefs.existing_furniture}
-            onChange={(id) => set({ existing_furniture: id as "replace" | "keep" })}
+            onChange={(id) => set({ existing_furniture: id as "replace" | "curate" | "keep" })}
             options={[
-              { id: "replace", label: "Replace it", blurb: "Clear the room and furnish it from scratch" },
-              { id: "keep", label: "Keep it", blurb: "Leave what's there and add what's missing" },
+              { id: "replace", label: "Replace everything", blurb: "Clear the room and furnish it from scratch" },
+              { id: "curate", label: "Keep what fits", blurb: "Pieces that match the style stay, the rest is replaced" },
+              { id: "keep", label: "Keep everything", blurb: "Leave what's there and only add what's missing" },
             ]}
           />
         </StepShell>
@@ -415,7 +416,11 @@ function Summary({ prefs, rooms }: { prefs: Preferences; rooms: { id: string; la
   if (prefs.furnish) {
     rows.push(["Style", STYLES.find((s) => s.id === prefs.style)?.label ?? "—"]);
     rows.push(["Shopping", SHOP_TIERS.find((s) => s.id === prefs.shop_tier)?.label ?? "—"]);
-    if (prefs.existing_furniture) rows.push(["Existing furniture", prefs.existing_furniture === "keep" ? "Keep and complement" : "Replace"]);
+    if (prefs.existing_furniture)
+      rows.push([
+        "Existing furniture",
+        prefs.existing_furniture === "keep" ? "Keep and complement" : prefs.existing_furniture === "curate" ? "Keep what fits" : "Replace",
+      ]);
     rows.push(["Budget", prefs.budget?.total == null ? "No fixed budget" : `${formatCurrency(prefs.budget.total)} · split ${prefs.budget.split}`]);
     if (prefs.lifestyle?.length) rows.push(["Lifestyle", prefs.lifestyle.join(", ")]);
     rows.push(["Feel", VIBES.find((v) => v.id === prefs.vibe)?.label ?? "—"]);

@@ -2,7 +2,8 @@
 
 import { requireUser } from "@/lib/supabase/server";
 import { getCurrentProject } from "@/lib/projects";
-import { ensureStack, enqueueEdit, invalidatePlan, type StackState } from "@/lib/pipeline";
+import { ensureStack, enqueueEdit, invalidatePlan, warmOtherPhotos, type StackState } from "@/lib/pipeline";
+import { after } from "next/server";
 import { preferencesDiffFromChat } from "@/lib/ai/chat";
 import { ROOM_LABELS, type PreferencesDiff, type RoomRow } from "@/lib/types";
 
@@ -17,7 +18,12 @@ export async function getStackAction(photoId: string): Promise<StackState> {
   const { sb, project } = await ctx();
   const { data: photo } = await sb.from("photos").select("id").eq("id", photoId).eq("project_id", project.id).maybeSingle();
   if (!photo) throw new Error("Photo not found");
-  return ensureStack(project.id, photoId);
+  const state = await ensureStack(project.id, photoId);
+  // Once this room has something on screen, warm the next rooms in the background.
+  if (state.cards.some((c) => c.status === "ready")) {
+    after(() => warmOtherPhotos(project.id, photoId).catch((e) => console.error("warm failed", e)));
+  }
+  return state;
 }
 
 export type SwipeResult = Record<string, never>;

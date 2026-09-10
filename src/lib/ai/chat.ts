@@ -25,7 +25,7 @@ ALLOWED VALUES
 - style: ${STYLES.map((s) => s.id).join(", ")}
 - shop_tier: ${SHOP_TIERS.map((s) => s.id).join(", ")}
 - floor.mode: keep | change | auto ; floor.material: ${FLOOR_MATERIALS.map((f) => f.id).join(", ")} ; floor.tone: light | medium | dark
-- existing_furniture: replace | keep (what happens to furniture already in the photos)
+- existing_furniture: replace | curate | keep (furniture already in the photos: replace everything / keep only what fits the style / keep all of it)
 - budget: { total: number|null, currency: string, split: "auto"|"manual", per_room?: {room_id: number} }
 - lifestyle: array of kids, pets, home_office, hosting, storage
 - vibe: calm_cozy | bright_airy | warm_lived_in | clean_modern | playful
