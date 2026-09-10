@@ -13,15 +13,16 @@ export function gemini() {
 }
 
 export const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
-// Image model per plan: paid Pro users get the stronger (slower, pricier) model,
-// everyone else the fast one. Set GEMINI_IMAGE_MODEL_PRO to enable the upgrade.
+// Two image models, chosen by the user in Preferences ("Fast" / "Extra precise").
+// The precise one keeps architecture noticeably better but is slower and pricier,
+// which is why it costs several images from the quota (see imageCostOf).
 export const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
-export const IMAGE_MODEL_PRO = process.env.GEMINI_IMAGE_MODEL_PRO || IMAGE_MODEL;
+export const IMAGE_MODEL_PRECISE = process.env.GEMINI_IMAGE_MODEL_PRO || "gemini-3-pro-image-preview";
 // The structure check only answers yes/no — a cheaper/faster model is fine here.
 export const VERIFY_MODEL = process.env.GEMINI_VERIFY_MODEL || TEXT_MODEL;
 
-export function imageModelForPlan(plan: string): string {
-  return plan === "pro" ? IMAGE_MODEL_PRO : IMAGE_MODEL;
+export function imageModelFor(quality: string): string {
+  return quality === "precise" ? IMAGE_MODEL_PRECISE : IMAGE_MODEL;
 }
 
 export type InlineImage = { mimeType: string; data: string }; // base64

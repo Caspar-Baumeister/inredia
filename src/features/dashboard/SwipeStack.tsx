@@ -63,11 +63,11 @@ export function SwipeStack({
     <div className="flex w-full max-w-[380px] flex-col items-center">
       <div className="relative w-full" style={{ aspectRatio: "3 / 4" }}>
         {/* backing cards */}
-        {ready.slice(1, 3).map((c, i) => (
+        {ready.slice(1, 4).map((c, i) => (
           <div
             key={c.id}
             className="absolute inset-0 overflow-hidden rounded-2xl bg-muted stack-shadow"
-            style={{ transform: `translate(${(i + 1) * 10}px, ${(i + 1) * 6}px) scale(${1 - (i + 1) * 0.03})`, zIndex: 5 - i, opacity: 0.9 }}
+            style={{ transform: `translate(${(i + 1) * 9}px, ${(i + 1) * 5}px) scale(${1 - (i + 1) * 0.025})`, zIndex: 5 - i, opacity: 0.9 - i * 0.1 }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={c.url!} alt="" className="h-full w-full object-cover" draggable={false} />

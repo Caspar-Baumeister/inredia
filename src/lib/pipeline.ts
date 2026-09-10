@@ -6,11 +6,17 @@ import { buildEditPrompt, buildGenerationPrompt, pickVariation, surfaceRules } f
 import { aspectRatioFor, geminiImageProvider } from "./ai/image";
 import { verifyStructure } from "./ai/verify";
 import { downloadAsBase64, GENERATIONS, ORIGINALS, signedUrls, uploadBuffer } from "./storage";
-import { planForUser, reserveImages } from "./billing";
-import { imageModelForPlan } from "./ai/gemini";
+import { reserveImages } from "./billing";
+import { IMAGE_MODEL, imageModelFor } from "./ai/gemini";
+import { imageCostOf, qualityOf, stackSizeOf } from "./types";
 import type { FurnishingPlan, GenerationRow, PhotoRow, ProjectRow, RoomRow, StackCard } from "./types";
 
-export const STACK_SIZE = Number(process.env.STACK_SIZE || 3);
+// Fallback when a project has no preference yet (users pick 1 / 3 / 5 themselves).
+export const STACK_SIZE = Number(process.env.STACK_SIZE || 5);
+// A generation that has been "generating" for longer than this lost its worker
+// (function timeout, deploy, crash) and is put back in the queue instead of
+// blocking the stack forever.
+const STALE_GENERATING_MS = Number(process.env.STALE_GENERATING_MS || 3 * 60_000);
 // Every generated image is checked against the original by the vision model;
 // images that changed windows/doors/walls (or a kept floor) are regenerated.
 export const STRUCTURE_CHECK = process.env.STRUCTURE_CHECK !== "0";
@@ -82,19 +88,23 @@ export async function ensureStack(projectId: string, photoId: string): Promise<S
     return { cards: [], limitReached: false, planStatus: project?.plan_status ?? "failed" };
   }
 
+  // Anything abandoned mid-flight goes back into the queue and keeps running.
+  await resumeStalled(projectId, photoId, project.plan_version);
+
+  const stackSize = stackSizeOf(project.preferences);
   const existing = await loadStack(projectId, photoId, project.plan_version);
   const alive = existing.filter((c) => c.status !== "failed");
   const failed = existing.filter((c) => c.status === "failed").length;
-  const missing = Math.max(0, STACK_SIZE - alive.length);
+  const missing = Math.max(0, stackSize - alive.length);
   let limitReached = false;
 
   // Stop re-enqueuing when this photo keeps failing (bad key, blocked content, ...).
-  if (missing > 0 && failed >= STACK_SIZE * 2) {
+  if (missing > 0 && failed >= stackSize * 2) {
     return { cards: alive, limitReached: false, planStatus: "failed" };
   }
 
   if (missing > 0) {
-    const remaining = await reserveImages(project.user_id, missing);
+    const remaining = await reserveImages(project.user_id, missing * imageCostOf(project.preferences));
     if (remaining < 0) {
       limitReached = true;
     } else {
@@ -121,6 +131,39 @@ export async function ensureStack(projectId: string, photoId: string): Promise<S
 
   const cards = await loadStack(projectId, photoId, project.plan_version);
   return { cards: cards.filter((c) => c.status !== "failed"), limitReached, planStatus: "ready" };
+}
+
+// Puts generations whose worker died back into the queue and restarts them.
+// This is what makes a half-finished room finish in the background instead of
+// hanging on "Rendering…" forever when the user navigated away mid-generation.
+export async function resumeStalled(projectId: string, photoId: string | null, planVersion: number): Promise<void> {
+  const admin = getSupabaseAdmin();
+  const cutoff = new Date(Date.now() - STALE_GENERATING_MS).toISOString();
+  let q = admin
+    .from("generations")
+    .update({ status: "queued" })
+    .eq("project_id", projectId)
+    .eq("plan_version", planVersion)
+    .eq("status", "generating")
+    .lt("updated_at", cutoff);
+  if (photoId) q = q.eq("photo_id", photoId);
+  const { data } = await q.select("id");
+  const stale = (data ?? []).map((r) => r.id as string);
+
+  // Queued rows nobody picked up (the request that enqueued them was cut short).
+  let q2 = admin
+    .from("generations")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("plan_version", planVersion)
+    .eq("status", "queued");
+  if (photoId) q2 = q2.eq("photo_id", photoId);
+  const { data: queued } = await q2;
+  const ids = [...new Set([...stale, ...(queued ?? []).map((r) => r.id as string)])];
+  if (!ids.length) return;
+  after(async () => {
+    await Promise.allSettled(ids.map((id) => runGeneration(id)));
+  });
 }
 
 export async function loadStack(projectId: string, photoId: string, planVersion: number): Promise<StackCard[]> {
@@ -213,13 +256,14 @@ export async function runGeneration(generationId: string) {
 
     // Generate → verify architecture → retry with the verifier's feedback.
     const aspectRatio = aspectRatioFor(ph.width, ph.height);
-    const model = imageModelForPlan(await planForUser(p.user_id));
+    const quality = qualityOf(p.preferences);
+    const model = imageModelFor(quality);
     let prompt = buildPrompt();
     let result: Awaited<ReturnType<typeof geminiImageProvider.generate>> | null = null;
     let lastProblems: string[] = [];
     for (let attempt = 0; attempt <= STRUCTURE_RETRIES; attempt++) {
       if (attempt > 0) prompt = buildPrompt(lastProblems.join("; "));
-      const candidate = await geminiImageProvider.generate({ prompt, base, refs, aspectRatio, model });
+      const candidate = await generateWithFallback({ prompt, base, refs, aspectRatio, model });
       if (!STRUCTURE_CHECK) {
         result = candidate;
         break;
@@ -254,9 +298,21 @@ export async function runGeneration(generationId: string) {
     const msg = (e as Error).message?.slice(0, 500) ?? "unknown";
     console.error("generation failed", gen.id, msg);
     await admin.from("generations").update({ status: "failed", error: msg }).eq("id", gen.id);
-    // refund the reserved image
-    const { data: project } = await admin.from("projects").select("user_id").eq("id", gen.project_id).single();
-    if (project) await reserveImages(project.user_id as string, -1);
+    // refund the reserved image(s)
+    const { data: project } = await admin.from("projects").select("user_id, preferences").eq("id", gen.project_id).single();
+    if (project) await reserveImages(project.user_id as string, -imageCostOf((project as { preferences: ProjectRow["preferences"] }).preferences));
+  }
+}
+
+// The precise model is a preview model — if it is unavailable for this key we
+// silently fall back to the fast one rather than failing the card.
+async function generateWithFallback(req: Parameters<typeof geminiImageProvider.generate>[0]) {
+  try {
+    return await geminiImageProvider.generate(req);
+  } catch (e) {
+    if (req.model === IMAGE_MODEL) throw e;
+    console.warn(`image model ${req.model} failed, falling back to ${IMAGE_MODEL}`, (e as Error).message);
+    return geminiImageProvider.generate({ ...req, model: IMAGE_MODEL });
   }
 }
 
@@ -283,9 +339,9 @@ async function loadStyleRefs(projectId: string, photoId: string) {
 // ---------------------------------------------------------------------------
 export async function enqueueEdit(projectId: string, photoId: string, parentId: string, instruction: string) {
   const admin = getSupabaseAdmin();
-  const { data: project } = await admin.from("projects").select("user_id, plan_version").eq("id", projectId).single();
+  const { data: project } = await admin.from("projects").select("user_id, plan_version, preferences").eq("id", projectId).single();
   if (!project) throw new Error("Project not found");
-  const remaining = await reserveImages(project.user_id as string, 1);
+  const remaining = await reserveImages(project.user_id as string, imageCostOf((project as { preferences: ProjectRow["preferences"] }).preferences));
   if (remaining < 0) return { limitReached: true as const };
   const { data: inserted } = await admin
     .from("generations")
@@ -311,12 +367,15 @@ export async function enqueueEdit(projectId: string, photoId: string, parentId: 
 // stack — that would multiply cost and slow the room the user is actually
 // looking at. Only runs once the current room already has something to show.
 // ---------------------------------------------------------------------------
-export async function warmOtherPhotos(projectId: string, currentPhotoId: string): Promise<void> {
+export async function warmOtherPhotos(projectId: string, currentPhotoId: string | null): Promise<void> {
   if (WARM_PHOTOS <= 0) return;
   const admin = getSupabaseAdmin();
-  const { data: project } = await admin.from("projects").select("id, user_id, plan_version, plan_status").eq("id", projectId).single();
-  const p = project as { user_id: string; plan_version: number; plan_status: string } | null;
+  const { data: project } = await admin.from("projects").select("id, user_id, plan_version, plan_status, preferences").eq("id", projectId).single();
+  const p = project as unknown as ProjectRow | null;
   if (!p || p.plan_status !== "ready") return;
+
+  // First: pick up anything that was left half-generated anywhere in the project.
+  await resumeStalled(projectId, null, p.plan_version);
 
   const [{ data: photos }, { data: gens }] = await Promise.all([
     admin.from("photos").select("id").eq("project_id", projectId).order("sort_order"),
@@ -326,7 +385,7 @@ export async function warmOtherPhotos(projectId: string, currentPhotoId: string)
   const cold = (photos ?? []).map((x) => x.id as string).filter((id) => id !== currentPhotoId && !touched.has(id)).slice(0, WARM_PHOTOS);
   if (!cold.length) return;
 
-  const remaining = await reserveImages(p.user_id, cold.length);
+  const remaining = await reserveImages(p.user_id, cold.length * imageCostOf(p.preferences));
   if (remaining < 0) return; // out of quota — the current room keeps priority
 
   const { data: inserted } = await admin
@@ -334,4 +393,14 @@ export async function warmOtherPhotos(projectId: string, currentPhotoId: string)
     .insert(cold.map((photoId) => ({ project_id: projectId, photo_id: photoId, plan_version: p.plan_version, kind: "variant", variation: pickVariation(0), status: "queued" })))
     .select("id");
   await Promise.allSettled((inserted ?? []).map((r) => runGeneration(r.id as string)));
+}
+
+// Called from pages where the user is not swiping (library, preferences): keeps
+// the pipeline moving so the dashboard is ready when they come back.
+export async function warmProject(projectId: string): Promise<void> {
+  const admin = getSupabaseAdmin();
+  const { data } = await admin.from("projects").select("plan_version, plan_status").eq("id", projectId).maybeSingle();
+  if (!data || data.plan_status !== "ready") return;
+  await resumeStalled(projectId, null, data.plan_version as number);
+  await warmOtherPhotos(projectId, null);
 }

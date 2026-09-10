@@ -1,14 +1,13 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { CURRENT_PROJECT_COOKIE } from "@/lib/projects";
 import { canCreateProject } from "@/lib/billing";
 import { classifyPhoto } from "@/lib/ai/classify";
 import { downloadAsBase64, ORIGINALS, signedUrl } from "@/lib/storage";
-import { invalidatePlan } from "@/lib/pipeline";
+import { ensureStack, invalidatePlan, warmOtherPhotos } from "@/lib/pipeline";
 import { ROOM_LABELS, type PhotoDetected, type Preferences, type RoomType } from "@/lib/types";
 
 export async function createProjectAction(name: string): Promise<{ projectId: string }> {
@@ -137,5 +136,32 @@ export async function finishOnboardingAction(input: { projectId: string; prefere
     .limit(1)
     .maybeSingle();
   await invalidatePlan(input.projectId, { schedulePhotoId: first?.id as string | undefined });
-  redirect("/dashboard");
+  return { firstPhotoId: (first?.id as string | undefined) ?? null };
+}
+
+export type OnboardingProgress = {
+  planStatus: "none" | "building" | "ready" | "failed";
+  ready: number;
+  pending: number;
+  limitReached: boolean;
+};
+
+// Polled by the wizard's "preparing your rooms" screen. Idempotent: it keeps the
+// plan and the first stack moving, and reports how far along they are.
+export async function onboardingProgressAction(input: { projectId: string; photoId: string }): Promise<OnboardingProgress> {
+  const { sb } = await requireUser();
+  const { data: project } = await sb.from("projects").select("id").eq("id", input.projectId).single();
+  if (!project) throw new Error("Project not found");
+  const state = await ensureStack(input.projectId, input.photoId);
+  const ready = state.cards.filter((c) => c.status === "ready").length;
+  if (ready > 0) {
+    // The user is about to land on the dashboard — start the other rooms now.
+    void warmOtherPhotos(input.projectId, input.photoId).catch(() => {});
+  }
+  return {
+    planStatus: state.planStatus,
+    ready,
+    pending: state.cards.filter((c) => c.status !== "ready").length,
+    limitReached: state.limitReached,
+  };
 }

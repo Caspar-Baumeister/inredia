@@ -6,6 +6,9 @@ import { GENERATIONS, signedUrls } from "@/lib/storage";
 import { formatCurrency } from "@/lib/utils";
 import { ROOM_LABELS, type RoomType } from "@/lib/types";
 import { LibraryGallery, type LibraryGroup } from "@/features/library/LibraryGallery";
+import { Prewarm } from "@/features/library/Prewarm";
+
+export const maxDuration = 120;
 
 export default async function LibraryPage() {
   const sb = await createServerSupabase();
@@ -46,6 +49,7 @@ export default async function LibraryPage() {
 
   return (
     <main className="flex-1 px-6 py-6">
+      <Prewarm />
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-lg font-semibold">Library</h1>

@@ -4,6 +4,11 @@ import { getCurrentProject } from "@/lib/projects";
 import { describePreferences } from "@/lib/ai/plan";
 import { formatCurrency } from "@/lib/utils";
 import { RuleList } from "@/features/preferences/RuleList";
+import { GenerationSettings } from "@/features/preferences/GenerationSettings";
+import { Prewarm } from "@/features/library/Prewarm";
+import { qualityOf, stackSizeOf } from "@/lib/types";
+
+export const maxDuration = 120;
 
 export default async function PreferencesPage() {
   const sb = await createServerSupabase();
@@ -27,7 +32,11 @@ export default async function PreferencesPage() {
       <h1 className="text-lg font-semibold">Preferences</h1>
       <p className="mb-6 text-xs text-muted-foreground">Your brief for {project.name}. Change anything through the chat on the dashboard — it rebuilds the plan and regenerates the rooms.</p>
 
+      <Prewarm />
+
       <div className="grid gap-6 lg:grid-cols-2">
+        <GenerationSettings stackSize={stackSizeOf(project.preferences)} quality={qualityOf(project.preferences)} />
+
         <section className="rounded-xl border bg-card p-5 card-shadow">
           <h2 className="mb-3 text-sm font-semibold">Brief</h2>
           <dl className="divide-y text-sm">

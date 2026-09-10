@@ -9,7 +9,7 @@ import type { StackState } from "@/lib/pipeline";
 import { OriginalCard } from "./OriginalCard";
 import { SwipeStack } from "./SwipeStack";
 import { ChatBar, type ChatBarHandle } from "./ChatBar";
-import { editAction, getStackAction, swipeAction } from "./actions";
+import { editAction, getStackAction, peekStackAction, swipeAction } from "./actions";
 import { usePro } from "@/features/pro/ProWaitlist";
 
 export type DashboardPhoto = {
@@ -30,6 +30,8 @@ type Project = {
 };
 
 const POLL_MS = 1500;
+// Other rooms keep rendering in the background; we follow them at a calmer pace.
+const BACKGROUND_POLL_MS = 4000;
 
 export function Dashboard({ project, photos }: { project: Project; photos: DashboardPhoto[] }) {
   const [index, setIndex] = useState(0);
@@ -61,12 +63,52 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
     }
   }, []);
 
-  // Load the current photo's stack. Only the current room is generated —
-  // other rooms start generating when you switch to them.
+  // Read-only: follows a room that is still rendering without asking for more images.
+  const peek = useCallback(async (photoId: string) => {
+    try {
+      const raw = await peekStackAction(photoId);
+      setStacks((s) => {
+        const cur = s[photoId];
+        const cards = raw.cards.filter((c) => !dismissedRef.current.has(c.id));
+        return { ...s, [photoId]: { ...raw, limitReached: cur?.limitReached ?? false, cards } };
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Load the current photo's stack. Switching rooms never cancels what is
+  // already running — the other rooms keep finishing in the background.
   useEffect(() => {
     const t = window.setTimeout(() => refresh(photo.id), 0);
     return () => window.clearTimeout(t);
   }, [photo.id, refresh]);
+
+  // Follow every other room that still has images in flight, so coming back to
+  // it shows a finished stack instead of restarting the wait.
+  const backgroundIds = photos
+    .filter((p) => p.id !== photo.id)
+    .filter((p) => {
+      const s = stacks[p.id];
+      return s ? s.cards.some((c) => c.status !== "ready") : false;
+    })
+    .map((p) => p.id)
+    .join(",");
+
+  useEffect(() => {
+    if (!backgroundIds) return;
+    const ids = backgroundIds.split(",");
+    const t = window.setInterval(() => ids.forEach((id) => peek(id)), BACKGROUND_POLL_MS);
+    return () => window.clearInterval(t);
+  }, [backgroundIds, peek]);
+
+  // Learn once what the other rooms already have (cheap, read-only).
+  const otherIds = photos.filter((p) => p.id !== photo.id).map((p) => p.id).join(",");
+  useEffect(() => {
+    if (!otherIds) return;
+    const t = window.setTimeout(() => otherIds.split(",").forEach((id) => peek(id)), 800);
+    return () => window.clearTimeout(t);
+  }, [otherIds, peek]);
 
   // Poll while anything is in flight (plan building or cards generating).
   useEffect(() => {
@@ -83,6 +125,22 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
       img.src = nextPhoto.url;
     }
   }, [nextPhoto]);
+
+  // Preload the first finished card of every other room so switching is instant.
+  const otherReady = Object.entries(stacks)
+    .filter(([id]) => id !== photo.id)
+    .map(([, s]) => s.cards.find((c) => c.status === "ready" && c.url)?.url)
+    .filter((u): u is string => Boolean(u))
+    .join("|");
+  useEffect(() => {
+    if (!otherReady) return;
+    for (const url of otherReady.split("|")) {
+      const img = new Image();
+      img.src = url;
+    }
+  }, [otherReady]);
+
+  const renderingElsewhere = photos.filter((p) => p.id !== photo.id && stacks[p.id]?.cards.some((c) => c.status !== "ready")).length;
 
   function removeCardLocally(photoId: string, cardId: string) {
     dismissedRef.current.add(cardId);
@@ -150,6 +208,11 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
           <h1 className="text-lg font-semibold">{project.name}</h1>
           <p className="text-xs text-muted-foreground">Swipe right to keep, left to skip. Everything is generated from one plan, so all rooms match.</p>
         </div>
+        {renderingElsewhere > 0 && (
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            {renderingElsewhere} other {renderingElsewhere === 1 ? "room is" : "rooms are"} rendering in the background
+          </p>
+        )}
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-8 px-6 pb-10 md:flex-row md:items-start md:gap-14 md:pt-6">

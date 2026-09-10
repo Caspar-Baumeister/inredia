@@ -6,6 +6,8 @@ import { canCreateProject } from "@/lib/billing";
 import { ORIGINALS, signedUrls } from "@/lib/storage";
 import type { PhotoRow, RoomRow } from "@/lib/types";
 
+export const maxDuration = 120;
+
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const sb = await createServerSupabase();
   const {

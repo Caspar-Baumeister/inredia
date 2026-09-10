@@ -2,7 +2,7 @@
 
 import { requireUser } from "@/lib/supabase/server";
 import { getCurrentProject } from "@/lib/projects";
-import { ensureStack, enqueueEdit, invalidatePlan, warmOtherPhotos, type StackState } from "@/lib/pipeline";
+import { ensureStack, enqueueEdit, invalidatePlan, loadStack, resumeStalled, warmOtherPhotos, warmProject, type StackState } from "@/lib/pipeline";
 import { after } from "next/server";
 import { preferencesDiffFromChat } from "@/lib/ai/chat";
 import { ROOM_LABELS, type PreferencesDiff, type RoomRow } from "@/lib/types";
@@ -24,6 +24,25 @@ export async function getStackAction(photoId: string): Promise<StackState> {
     after(() => warmOtherPhotos(project.id, photoId).catch((e) => console.error("warm failed", e)));
   }
   return state;
+}
+
+// Read-only view of a stack: never enqueues new images, but does restart work
+// that was abandoned mid-flight. Used to follow the other rooms' progress in the
+// background without spending quota on rooms the user has not opened.
+export async function peekStackAction(photoId: string): Promise<StackState> {
+  const { sb, project } = await ctx();
+  const { data: photo } = await sb.from("photos").select("id").eq("id", photoId).eq("project_id", project.id).maybeSingle();
+  if (!photo) throw new Error("Photo not found");
+  after(() => resumeStalled(project.id, photoId, project.plan_version).catch((e) => console.error("resume failed", e)));
+  const cards = await loadStack(project.id, photoId, project.plan_version);
+  return { cards: cards.filter((c) => c.status !== "failed"), limitReached: false, planStatus: project.plan_status };
+}
+
+// Called from pages where nothing is being swiped (library) so generation keeps
+// running in the background instead of pausing while the user browses.
+export async function warmProjectAction(): Promise<void> {
+  const { project } = await ctx();
+  after(() => warmProject(project.id).catch((e) => console.error("warm failed", e)));
 }
 
 export type SwipeResult = Record<string, never>;

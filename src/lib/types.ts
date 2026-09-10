@@ -95,6 +95,33 @@ export const VIBES = [
   { id: "playful", label: "Playful & colorful" },
 ] as const;
 
+// How many cards are kept ready per room. More = more choice, but more images
+// from your quota and a slower first render.
+export const STACK_SIZES = [1, 3, 5] as const;
+export type StackSize = (typeof STACK_SIZES)[number];
+export const DEFAULT_STACK_SIZE: StackSize = 5;
+
+// Which image model does the work. "precise" uses the stronger model: slower and
+// it costs several images from your quota per generated image.
+export const QUALITY_MODES = [
+  { id: "fast", label: "Fast", blurb: "Good results in a few seconds.", cost: 1 },
+  { id: "precise", label: "Extra precise", blurb: "Keeps the architecture noticeably better. Slower, and each image counts as 3.", cost: 3 },
+] as const;
+export type QualityMode = (typeof QUALITY_MODES)[number]["id"];
+export const DEFAULT_QUALITY: QualityMode = "fast";
+
+export function stackSizeOf(prefs: Preferences | null | undefined): StackSize {
+  const n = prefs?.stack_size;
+  return (STACK_SIZES as readonly number[]).includes(n as number) ? (n as StackSize) : DEFAULT_STACK_SIZE;
+}
+export function qualityOf(prefs: Preferences | null | undefined): QualityMode {
+  return prefs?.quality === "precise" ? "precise" : DEFAULT_QUALITY;
+}
+/** How many images one generated picture costs against the plan quota. */
+export function imageCostOf(prefs: Preferences | null | undefined): number {
+  return QUALITY_MODES.find((q) => q.id === qualityOf(prefs))!.cost;
+}
+
 export type Preferences = {
   // Walls are never changed by inredia; kept as an optional field for old rows.
   walls?: { mode: "keep" | "refresh" | "change" | "auto"; palette?: WallPalette };
@@ -111,6 +138,10 @@ export type Preferences = {
   lifestyle?: string[];
   vibe?: string;
   notes?: string;
+  /** Cards kept ready per room (1 | 3 | 5). */
+  stack_size?: StackSize;
+  /** Image model: "fast" or "precise" (slower, costs 3 images each). */
+  quality?: QualityMode;
 };
 
 export type PlanItem = { item: string; style_note: string; est_price: number };

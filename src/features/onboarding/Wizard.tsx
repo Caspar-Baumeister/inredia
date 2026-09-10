@@ -16,6 +16,7 @@ import { formatCurrency } from "@/lib/utils";
 import { photosAreValid, roomName, UploadStep, type UploadedPhoto } from "./UploadStep";
 import { Chips, OptionCards, StepShell } from "./ui";
 import { createProjectAction, finishOnboardingAction } from "./actions";
+import { Preparing } from "./Preparing";
 
 type StepId =
   | "name"
@@ -51,6 +52,8 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
   const [stepIndex, setStepIndex] = useState(existing ? 1 : 0);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // After "finish" we stay here and show progress until the first image exists.
+  const [preparingPhotoId, setPreparingPhotoId] = useState<string | null>(null);
 
   const rooms = useMemo(() => {
     const map = new Map<string, { id: string; label: string }>();
@@ -128,16 +131,17 @@ export function Wizard({ userId, existing }: { userId: string; existing: Existin
     if (!projectId) return;
     start(async () => {
       try {
-        await finishOnboardingAction({ projectId, preferences: prefs });
+        const { firstPhotoId } = await finishOnboardingAction({ projectId, preferences: prefs });
+        setPreparingPhotoId(firstPhotoId ?? photos[0]?.photoId ?? null);
       } catch (e) {
-        // redirect() throws internally; only surface real errors
-        const msg = (e as Error).message ?? "";
-        if (!msg.includes("NEXT_REDIRECT")) setError(msg);
+        setError((e as Error).message ?? "Something went wrong");
       }
     });
   }
 
   const set = (patch: Partial<Preferences>) => setPrefs((p) => ({ ...p, ...patch }));
+
+  if (preparingPhotoId && projectId) return <Preparing projectId={projectId} photoId={preparingPhotoId} />;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-10">
