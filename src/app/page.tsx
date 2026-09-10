@@ -65,6 +65,15 @@ export default async function Home() {
             <Link href="/pricing" className="text-ink/70 underline decoration-ink/20 underline-offset-4 hover:text-ink">
               Pricing
             </Link>
+            <Link href="/legal/imprint" className="text-ink/70 underline decoration-ink/20 underline-offset-4 hover:text-ink">
+              Impressum
+            </Link>
+            <Link href="/legal/privacy" className="text-ink/70 underline decoration-ink/20 underline-offset-4 hover:text-ink">
+              Datenschutz
+            </Link>
+            <Link href="/legal/terms" className="text-ink/70 underline decoration-ink/20 underline-offset-4 hover:text-ink">
+              AGB
+            </Link>
           </span>
           <p>
             Made by {SITE.founder}, one person. Bugs, wishes, hellos →{" "}

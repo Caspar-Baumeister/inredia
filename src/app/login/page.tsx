@@ -13,7 +13,18 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="mt-1 text-sm text-muted-foreground">Sign in to see your rooms furnished.</p>
         </div>
         <LoginForm next={params.next} authError={Boolean(params.auth_error)} appleEnabled={process.env.NEXT_PUBLIC_APPLE_AUTH === "1"} />
-        <p className="mt-6 text-center text-xs text-muted-foreground">
+        <p className="mt-4 flex justify-center gap-3 text-xs text-muted-foreground">
+          <a href="/legal/imprint" className="hover:underline">
+            Impressum
+          </a>
+          <a href="/legal/privacy" className="hover:underline">
+            Datenschutz
+          </a>
+          <a href="/legal/terms" className="hover:underline">
+            AGB
+          </a>
+        </p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           Questions or feedback? Message {SITE.founder} on{" "}
           <a href={SITE.xUrl} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
             X {SITE.xHandle}

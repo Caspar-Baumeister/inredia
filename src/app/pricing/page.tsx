@@ -35,6 +35,17 @@ export default async function PricingPage() {
         <div className="mt-12">
           <PricingPublic currentPlan={plan} signedIn={Boolean(user)} />
         </div>
+        <div className="mt-16 flex flex-wrap justify-center gap-4 border-t border-ink/15 pt-6 text-xs text-ink/55">
+          <Link href="/legal/imprint" className="hover:text-ink">
+            Impressum
+          </Link>
+          <Link href="/legal/privacy" className="hover:text-ink">
+            Datenschutz
+          </Link>
+          <Link href="/legal/terms" className="hover:text-ink">
+            AGB
+          </Link>
+        </div>
       </main>
     </div>
   );

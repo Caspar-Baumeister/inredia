@@ -67,3 +67,13 @@ body {
 .landing .font-hand { font-family: var(--font-hand), "Segoe Print", "Bradley Hand", cursive; }
 .landing .font-mono { font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace; }
 .landing { background-image: radial-gradient(1200px 600px at 50% -10%, rgba(184, 103, 42, 0.08), transparent 60%); }
+
+/* Legal pages: readable long-form prose in the landing type system */
+.legal { color: color-mix(in srgb, var(--color-ink) 78%, transparent); font-size: 15px; line-height: 1.7; }
+.legal h1 { color: var(--color-ink); }
+.legal h2 { color: var(--color-ink); font-size: 1.05rem; font-weight: 600; margin-top: 2.25rem; margin-bottom: 0.5rem; }
+.legal p { margin-bottom: 0.9rem; }
+.legal ul { margin: 0 0 0.9rem 1.1rem; list-style: disc; }
+.legal li { margin-bottom: 0.4rem; }
+.legal strong { color: var(--color-ink); font-weight: 600; }
+.legal a { color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-honey); text-underline-offset: 3px; }
