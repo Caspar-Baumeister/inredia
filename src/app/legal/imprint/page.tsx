@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LEGAL } from "@/lib/legal";
 import { SITE } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Impressum · inredia", robots: { index: true } };
+export const metadata: Metadata = { title: "Impressum", robots: { index: true } };
 
 export default function ImprintPage() {
   return (

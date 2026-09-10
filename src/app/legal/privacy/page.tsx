@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LEGAL } from "@/lib/legal";
 import { SITE } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Datenschutz · inredia" };
+export const metadata: Metadata = { title: "Datenschutz" };
 
 export default function PrivacyPage() {
   return (

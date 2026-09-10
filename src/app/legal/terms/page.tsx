@@ -3,7 +3,7 @@ import { LEGAL } from "@/lib/legal";
 import { PLANS } from "@/lib/plans";
 import { SITE } from "@/lib/site";
 
-export const metadata: Metadata = { title: "AGB · inredia" };
+export const metadata: Metadata = { title: "AGB" };
 
 export default function TermsPage() {
   return (
