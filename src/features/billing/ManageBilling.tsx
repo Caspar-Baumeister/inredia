@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { openPortalAction } from "./actions";
-import { usePro } from "@/features/pro/ProWaitlist";
+import { usePro } from "@/features/pro/UpgradeDialog";
 
 export function ManageBilling({ hasCustomer, plan }: { hasCustomer: boolean; plan: string }) {
   const [pending, start] = useTransition();

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, ChevronsUpDown, Lock, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { selectProjectAction } from "@/features/projects/actions";
-import { usePro } from "@/features/pro/ProWaitlist";
+import { usePro } from "@/features/pro/UpgradeDialog";
 import { LogoMark } from "./Logo";
 
 export type SwitcherProject = { id: string; name: string; done: boolean };

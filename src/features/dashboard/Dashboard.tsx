@@ -10,7 +10,7 @@ import { OriginalCard } from "./OriginalCard";
 import { SwipeStack } from "./SwipeStack";
 import { ChatBar, type ChatBarHandle } from "./ChatBar";
 import { editAction, getStackAction, peekStackAction, swipeAction } from "./actions";
-import { usePro } from "@/features/pro/ProWaitlist";
+import { usePro } from "@/features/pro/UpgradeDialog";
 
 export type DashboardPhoto = {
   id: string;
@@ -197,7 +197,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
     }
   }
 
-  function joinWaitlist() {
+  function showPlans() {
     openPro("image_limit");
   }
 
@@ -230,8 +230,7 @@ export function Dashboard({ project, photos }: { project: Project; photos: Dashb
           onLike={handleLike}
           onDislike={handleDislike}
           onEdit={setEditCard}
-          onJoinWaitlist={joinWaitlist}
-          waitlisted={false}
+          onShowPlans={showPlans}
         />
       </main>
 

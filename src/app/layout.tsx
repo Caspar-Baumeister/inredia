@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || "https://inredia.com";
@@ -34,7 +35,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Cookie-free page + referrer analytics (no consent banner needed). */}
+        <Analytics />
+      </body>
     </html>
   );
 }

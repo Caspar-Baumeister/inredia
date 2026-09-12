@@ -7,7 +7,7 @@ import { LogOut, Menu, Sparkles, X } from "lucide-react";
 import { NAV } from "./nav";
 import { LogoMark } from "./Logo";
 import { FeedbackCard } from "./FeedbackCard";
-import { usePro } from "@/features/pro/ProWaitlist";
+import { usePro } from "@/features/pro/UpgradeDialog";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/app/auth/actions";
 import { selectProjectAction } from "@/features/projects/actions";

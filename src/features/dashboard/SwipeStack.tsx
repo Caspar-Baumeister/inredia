@@ -14,8 +14,7 @@ export function SwipeStack({
   onLike,
   onDislike,
   onEdit,
-  onJoinWaitlist,
-  waitlisted,
+  onShowPlans,
 }: {
   cards: StackCard[];
   planStatus: "none" | "building" | "ready" | "failed";
@@ -23,8 +22,7 @@ export function SwipeStack({
   onLike: (card: StackCard) => void;
   onDislike: (card: StackCard) => void;
   onEdit: (card: StackCard) => void;
-  onJoinWaitlist: () => void;
-  waitlisted: boolean;
+  onShowPlans: () => void;
 }) {
   const ready = cards.filter((c) => c.status === "ready" && c.url);
   const top = ready[0];
@@ -116,7 +114,7 @@ export function SwipeStack({
             )}
           </div>
         ) : (
-          <Placeholder planStatus={planStatus} limitReached={limitReached} pending={pending} onJoinWaitlist={onJoinWaitlist} waitlisted={waitlisted} />
+          <Placeholder planStatus={planStatus} limitReached={limitReached} pending={pending} onShowPlans={onShowPlans} />
         )}
       </div>
 
@@ -163,14 +161,12 @@ function Placeholder({
   planStatus,
   limitReached,
   pending,
-  onJoinWaitlist,
-  waitlisted,
+  onShowPlans,
 }: {
   planStatus: string;
   limitReached: boolean;
   pending: number;
-  onJoinWaitlist: () => void;
-  waitlisted: boolean;
+  onShowPlans: () => void;
 }) {
   if (limitReached && pending === 0) {
     return (
@@ -178,13 +174,9 @@ function Placeholder({
         <Sparkles className="mb-3 text-accent" />
         <p className="font-semibold">Image limit reached</p>
         <p className="mt-1 text-sm text-muted-foreground">Paid plans refill every day. Pick one to keep going.</p>
-        {waitlisted ? (
-          <p className="mt-4 rounded-full bg-success-soft px-4 py-2 text-sm text-success">You&apos;re on the list</p>
-        ) : (
-          <button onClick={onJoinWaitlist} className="mt-4 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent/90">
-            See plans
-          </button>
-        )}
+        <button onClick={onShowPlans} className="mt-4 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent/90">
+          See plans
+        </button>
       </div>
     );
   }

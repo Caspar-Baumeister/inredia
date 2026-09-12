@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/app/Sidebar";
 import { MobileNav } from "@/components/app/MobileNav";
 import { ToastProvider } from "@/components/ui/toast";
-import { ProProvider } from "@/features/pro/ProWaitlist";
+import { ProProvider } from "@/features/pro/UpgradeDialog";
 import { getCurrentProject } from "@/lib/projects";
 import { loadBillingProfile } from "@/lib/billing";
 import { effectivePlan, projectLimitFor } from "@/lib/plans";
